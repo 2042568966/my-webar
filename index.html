@@ -3,7 +3,7 @@
   <head>
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta charset="utf-8" />
-    <title>AR 故事播放器 - 支持音视频</title>
+    <title>AR 故事播放器 - 持续时间控制版</title>
     <script src="https://aframe.io/releases/1.3.0/aframe.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.2/dist/mindar-image-aframe.prod.js"></script>
     <script src="https://cdn.jsdelivr.net/gh/donmccurdy/aframe-extras@v6.1.1/dist/aframe-extras.min.js"></script>
@@ -12,9 +12,7 @@
       #debug-console { position: fixed; top: 0; left: 0; width: 100%; height: 15vh; background: rgba(0, 0, 0, 0.7); color: #00FF00; font-family: monospace; font-size: 12px; overflow-y: auto; z-index: 9999; padding: 10px; box-sizing: border-box; pointer-events: none; }
       .log-error { color: #FF4444; } .log-warn { color: #FFAA00; }
       #subtitle-container { position: fixed; bottom: 10%; left: 5%; width: 90%; text-align: center; z-index: 9998; pointer-events: none; opacity: 0; transition: opacity 0.5s ease-in-out; }
-      #subtitle-text { display: inline-block; background: rgba(0, 0, 0, 0.6); color: white; padding: 10px 20px; border-radius: 8px; font-size: 18px; text-shadow: 1px 1px 2px black; }
-      
-      /* [新增] 用户交互遮罩：解除移动端音视频播放限制 */
+      #subtitle-text { display: inline-block; background: rgba(0, 0, 0, 0.6); color: white; padding: 10px 20px; border-radius: 8px; font-size: 18px; text-shadow: 1px 1px 2px black; max-width: 100%; word-wrap: break-word; }
       #start-screen { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); z-index: 10000; display: flex; flex-direction: column; justify-content: center; align-items: center; color: white; font-family: sans-serif; }
       #start-btn { padding: 15px 40px; font-size: 20px; background: #4CC3D9; border: none; border-radius: 30px; color: white; margin-top: 20px; cursor: pointer; box-shadow: 0 4px 15px rgba(76,195,217,0.4); }
     </style>
@@ -37,15 +35,9 @@
         debugConsole.scrollTop = debugConsole.scrollHeight;
       }
 
-      let activeAudio = null;       
-      let currentModelEl = null;    
       let activeTimers = [];        
-      
-      // [新增] 视频状态管理
-      let activeVideoHtml = null;   // 底层的 html5 video 标签
-      let activeVideoEl = null;     // A-Frame 的 a-video 实体
+      let globalMediaElements = []; // 用于在追踪丢失时强制清理所有素材
 
-      // 解除媒体限制逻辑
       document.getElementById('start-btn').addEventListener('click', function() {
         document.getElementById('start-screen').style.display = 'none';
         printLog("✅ 用户已授权互动，媒体播放已解锁");
@@ -57,100 +49,109 @@
         const subtitleText = document.getElementById('subtitle-text');
 
         targetEl.addEventListener("targetFound", event => {
-          printLog("🎯 发现目标图片！正在拉取剧本...");
+          printLog("🎯 发现目标图片！正在执行剧本...");
           
           fetch('./story_config.json')
             .then(response => response.json())
             .then(config => {
+              
               config.timeline.forEach(step => {
-                let timer = setTimeout(() => {
+                // 1. 触发定时器：何时开始动作
+                let startTimer = setTimeout(() => {
+                  const duration = step.duration_ms || 3000; // 获取持续时间，保底3秒
                   
-                  // 1. 显示文字
+                  // 为每个动作建立独立的局部变量，防止互相覆盖
+                  let localModel = null;
+                  let localVideoHtml = null;
+                  let localVideoEl = null;
+                  let localAudio = null;
+
                   if (step.action === 'showText') {
                     subtitleText.innerText = step.value;
                     subtitleContainer.style.opacity = 1;
-                    setTimeout(() => { subtitleContainer.style.opacity = 0; }, 3000);
                   } 
-                  
-                  // 2. 播放声音
                   else if (step.action === 'playSound') {
-                    if (activeAudio) activeAudio.pause(); 
-                    activeAudio = new Audio(step.value);
-                    activeAudio.play().catch(e => printLog("音频播放失败", 'log-error'));
+                    localAudio = new Audio(step.value);
+                    localAudio.play().catch(e => printLog("音频播放失败", 'log-error'));
+                    globalMediaElements.push(localAudio);
                   }
-                  
-                  // 3. 播放 3D 模型
                   else if (step.action === 'playAnimation') {
-                    if (currentModelEl) targetEl.removeChild(currentModelEl);
-                    if (activeVideoEl) { targetEl.removeChild(activeVideoEl); activeVideoHtml.pause(); } // 互斥清理
+                    localModel = document.createElement('a-gltf-model');
+                    localModel.setAttribute('src', step.value);
+                    localModel.setAttribute('scale', '0.5 0.5 0.5'); 
+                    localModel.setAttribute('animation-mixer', 'loop: once; clampWhenFinished: true'); 
+                    targetEl.appendChild(localModel);
+                    globalMediaElements.push(localModel);
+                  }
+                  else if (step.action === 'playVideo') {
+                    localVideoHtml = document.createElement('video');
+                    localVideoHtml.id = 'video-' + Date.now() + Math.floor(Math.random()*1000);
+                    localVideoHtml.src = step.value;
+                    localVideoHtml.crossOrigin = 'anonymous';
+                    localVideoHtml.loop = false;
+                    localVideoHtml.setAttribute('playsinline', ''); 
+                    localVideoHtml.setAttribute('webkit-playsinline', '');
+                    document.body.appendChild(localVideoHtml);
+
+                    localVideoEl = document.createElement('a-video');
+                    localVideoEl.setAttribute('src', '#' + localVideoHtml.id);
+                    localVideoEl.setAttribute('width', '1.6');
+                    localVideoEl.setAttribute('height', '0.9');
+                    localVideoEl.setAttribute('position', '0 0.5 0'); 
+                    targetEl.appendChild(localVideoEl);
                     
-                    currentModelEl = document.createElement('a-gltf-model');
-                    currentModelEl.setAttribute('src', step.value);
-                    currentModelEl.setAttribute('scale', '0.5 0.5 0.5'); 
-                    currentModelEl.setAttribute('animation-mixer', 'loop: once; clampWhenFinished: true'); 
-                    targetEl.appendChild(currentModelEl);
+                    localVideoHtml.play().catch(e => printLog("视频播放失败", 'log-error'));
+                    globalMediaElements.push({html: localVideoHtml, el: localVideoEl});
                   }
                   
-                  // 4. [新增] 播放 MP4 视频
-                  else if (step.action === 'playVideo') {
-                    printLog(`[视频] 加载视频: ${step.value}`);
-                    
-                    // 清理上一个视频或模型，防止重叠
-                    if (currentModelEl) { targetEl.removeChild(currentModelEl); currentModelEl = null; }
-                    if (activeVideoEl) { targetEl.removeChild(activeVideoEl); activeVideoHtml.pause(); }
-
-                    // A. 创建底层的 HTML5 <video> 元素
-                    activeVideoHtml = document.createElement('video');
-                    activeVideoHtml.id = 'ar-video-' + Date.now();
-                    activeVideoHtml.src = step.value;
-                    activeVideoHtml.crossOrigin = 'anonymous';
-                    activeVideoHtml.loop = false; // 是否循环播放？这里设为否
-                    
-                    // 【极度重要】如果不加这两行，iOS 扫到图时会直接全屏打开视频，AR 崩溃！
-                    activeVideoHtml.setAttribute('playsinline', ''); 
-                    activeVideoHtml.setAttribute('webkit-playsinline', '');
-                    
-                    document.body.appendChild(activeVideoHtml);
-
-                    // B. 创建 A-Frame 实体来显示这个视频
-                    activeVideoEl = document.createElement('a-video');
-                    activeVideoEl.setAttribute('src', '#' + activeVideoHtml.id);
-                    // 假设视频是 16:9 比例，调整宽高使其不变形
-                    activeVideoEl.setAttribute('width', '1.6');
-                    activeVideoEl.setAttribute('height', '0.9');
-                    // position 设置在图片正上方悬浮
-                    activeVideoEl.setAttribute('position', '0 0.5 0'); 
-                    
-                    targetEl.appendChild(activeVideoEl);
-                    
-                    // C. 播放
-                    activeVideoHtml.play().catch(e => printLog("视频播放失败，请确认点击了开始按钮", 'log-error'));
-                  }
+                  // 2. 结束定时器：何时停止并清理该动作
+                  let endTimer = setTimeout(() => {
+                    // 只有当当前显示的字幕依然是“我这句话”时才撤下（防止被后来者覆盖后误杀）
+                    if (step.action === 'showText' && subtitleText.innerText === step.value) {
+                      subtitleContainer.style.opacity = 0;
+                    } 
+                    else if (step.action === 'playAnimation' && localModel) {
+                      if (localModel.parentNode) localModel.parentNode.removeChild(localModel);
+                    }
+                    else if (step.action === 'playVideo' && localVideoEl) {
+                      if (localVideoEl.parentNode) localVideoEl.parentNode.removeChild(localVideoEl);
+                      localVideoHtml.pause();
+                      localVideoHtml.remove();
+                    }
+                    else if (step.action === 'playSound' && localAudio) {
+                       localAudio.pause();
+                    }
+                  }, duration); // 核心：使用 JSON 里的持续时间触发清理
+                  
+                  activeTimers.push(endTimer);
                   
                 }, step.time_ms);
-                activeTimers.push(timer);
+                
+                activeTimers.push(startTimer);
               });
-            });
+            })
+            .catch(error => printLog("❌ 剧本拉取失败: " + error, 'log-error'));
         });
 
-        // ⚠️ 目标丢失清理
+        // ⚠️ 目标丢失时：彻底大扫除
         targetEl.addEventListener("targetLost", event => {
           printLog("⚠️ 目标丢失，清理场景...");
           activeTimers.forEach(t => clearTimeout(t));
           activeTimers = [];
           subtitleContainer.style.opacity = 0;
           
-          if (activeAudio) { activeAudio.pause(); activeAudio.currentTime = 0; }
-          if (currentModelEl) { targetEl.removeChild(currentModelEl); currentModelEl = null; }
-          
-          // [新增] 视频清理逻辑
-          if (activeVideoEl) {
-            targetEl.removeChild(activeVideoEl);
-            activeVideoHtml.pause();
-            activeVideoHtml.currentTime = 0;
-            activeVideoHtml.remove(); // 从 DOM 中彻底删除
-            activeVideoEl = null;
-          }
+          globalMediaElements.forEach(item => {
+            if (item instanceof Audio) {
+               item.pause();
+            } else if (item.html && item.el) {
+               if (item.el.parentNode) item.el.parentNode.removeChild(item.el);
+               item.html.pause();
+               item.html.remove();
+            } else if (item.parentNode) {
+               item.parentNode.removeChild(item);
+            }
+          });
+          globalMediaElements = [];
         });
       });
     </script>

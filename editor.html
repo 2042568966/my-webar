@@ -2,227 +2,281 @@
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
-  <title>AR 故事可视化工作栈</title>
+  <title>AR 故事编辑器 - 时序控制专业版</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  
+  <script src="https://unpkg.com/vis-timeline@7.7.2/standalone/umd/vis-timeline-graph2d.min.js"></script>
+  <link href="https://unpkg.com/vis-timeline@7.7.2/styles/vis-timeline-graph2d.min.css" rel="stylesheet" type="text/css" />
+
   <style>
-    /* 自定义滚动条 */
-    ::-webkit-scrollbar { width: 8px; }
-    ::-webkit-scrollbar-track { background: #f1f5f9; }
-    ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
-    ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
-    .timeline-line::before {
-      content: ''; position: absolute; top: 0; bottom: 0; left: 15px; width: 2px; background: #e2e8f0; z-index: 0;
-    }
+    body { overflow: hidden; }
+    .vis-timeline { border: none; font-family: inherit; }
+    .vis-panel.vis-left { font-weight: bold; background: #f8fafc; border-right: 1px solid #e2e8f0; }
+    .vis-item { border-radius: 6px; border: none; font-size: 12px; color: white; box-shadow: 0 2px 4px rgba(0,0,0,0.1); transition: opacity 0.2s;}
+    .vis-item:hover { opacity: 0.9; }
+    .vis-item.vis-selected { border: 2px solid #1e293b; box-shadow: 0 0 0 2px rgba(255,255,255,0.5) inset; z-index: 10 !important; }
+    
+    .item-text { background-color: #3b82f6; } 
+    .item-audio { background-color: #a855f7; } 
+    .item-model { background-color: #f97316; } 
+    .item-video { background-color: #f43f5e; } 
+    
+    .vis-time-axis .vis-text { color: #64748b; font-size: 11px; }
+    .vis-current-time { background-color: #ef4444; width: 2px; }
   </style>
 </head>
-<body class="bg-slate-100 h-screen font-sans overflow-hidden flex flex-col">
+<body class="bg-slate-100 h-screen flex flex-col font-sans">
 
-  <header class="bg-white shadow-sm border-b border-slate-200 px-6 py-4 flex justify-between items-center z-10">
+  <header class="bg-white shadow-sm border-b border-slate-200 px-6 py-3 flex justify-between items-center shrink-0 z-20">
     <div class="flex items-center gap-3">
-      <div class="w-10 h-10 bg-indigo-600 rounded-lg flex items-center justify-center text-white font-bold text-xl">
-        <i class="fa-solid fa-cube"></i>
+      <div class="w-8 h-8 bg-slate-800 rounded flex items-center justify-center text-white font-bold text-sm">
+        <i class="fa-solid fa-clapperboard"></i>
       </div>
       <div>
-        <h1 class="text-xl font-bold text-slate-800">AR Story Studio</h1>
-        <p class="text-xs text-slate-500">剧本可视化编辑器 v2.0</p>
+        <h1 class="text-lg font-bold text-slate-800 leading-tight">AR Story Studio</h1>
+        <p class="text-[10px] text-slate-500">Pro Timeline Editor v5.0 (Duration Support)</p>
       </div>
     </div>
     <div class="flex gap-4 items-center">
-      <div class="flex items-center gap-2 bg-slate-100 px-3 py-2 rounded-md border border-slate-200">
-        <i class="fa-solid fa-crosshairs text-slate-400"></i>
+      <div class="flex items-center gap-2 bg-slate-50 px-3 py-1.5 rounded-md border border-slate-200">
+        <i class="fa-solid fa-crosshairs text-slate-400 text-sm"></i>
         <input type="text" id="targetImage" value="targets.mind" class="bg-transparent border-none outline-none text-sm w-32" placeholder="识别图文件名">
       </div>
-      <button onclick="exportJSON()" class="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2 rounded-lg font-medium transition shadow-md shadow-indigo-200 flex items-center gap-2">
-        <i class="fa-solid fa-download"></i> 导出配置 (JSON)
+      <button onclick="exportJSON()" class="bg-slate-800 hover:bg-slate-900 text-white px-4 py-1.5 rounded-md text-sm font-medium transition shadow flex items-center gap-2">
+        <i class="fa-solid fa-file-export"></i> 导出 JSON
       </button>
     </div>
   </header>
 
-  <main class="flex-1 flex overflow-hidden">
+  <main class="flex-1 flex flex-col min-h-0">
     
-    <div class="w-1/2 p-6 overflow-y-auto border-r border-slate-200 bg-slate-50">
-      <div class="flex justify-between items-end mb-6">
-        <h2 class="text-lg font-semibold text-slate-800">节点编辑器</h2>
-        <button onclick="addEvent()" class="text-indigo-600 bg-indigo-50 hover:bg-indigo-100 px-4 py-2 rounded-md text-sm font-medium transition border border-indigo-200">
-          <i class="fa-solid fa-plus mr-1"></i> 添加新事件
-        </button>
+    <div class="flex-1 bg-white border-b border-slate-200 flex flex-col relative min-h-0">
+      <div class="px-4 py-2 bg-slate-50 border-b border-slate-200 flex justify-between items-center shrink-0">
+        <span class="text-xs font-bold text-slate-500 uppercase tracking-wider">时间轴监视器</span>
+        <div class="flex gap-2">
+          <button onclick="zoomTimeline(0.5)" class="p-1 text-slate-400 hover:text-slate-800" title="放大"><i class="fa-solid fa-magnifying-glass-plus"></i></button>
+          <button onclick="zoomTimeline(2)" class="p-1 text-slate-400 hover:text-slate-800" title="缩小"><i class="fa-solid fa-magnifying-glass-minus"></i></button>
+        </div>
       </div>
       
-      <div id="editor-container" class="space-y-4">
-        </div>
+      <div id="timeline-container" class="flex-1 overflow-hidden w-full h-full"></div>
+      
+      <div class="absolute bottom-4 right-4 flex gap-2 z-10 shadow-lg bg-white p-1 rounded-lg border border-slate-200">
+        <button onclick="addClip('showText')" class="w-8 h-8 rounded bg-blue-100 text-blue-600 hover:bg-blue-500 hover:text-white transition flex items-center justify-center text-sm" title="添加文字"><i class="fa-solid fa-font"></i></button>
+        <button onclick="addClip('playSound')" class="w-8 h-8 rounded bg-purple-100 text-purple-600 hover:bg-purple-500 hover:text-white transition flex items-center justify-center text-sm" title="添加音频"><i class="fa-solid fa-music"></i></button>
+        <button onclick="addClip('playAnimation')" class="w-8 h-8 rounded bg-orange-100 text-orange-600 hover:bg-orange-500 hover:text-white transition flex items-center justify-center text-sm" title="添加模型"><i class="fa-solid fa-cube"></i></button>
+        <button onclick="addClip('playVideo')" class="w-8 h-8 rounded bg-rose-100 text-rose-600 hover:bg-rose-500 hover:text-white transition flex items-center justify-center text-sm" title="添加视频"><i class="fa-solid fa-film"></i></button>
+      </div>
     </div>
 
-    <div class="w-1/2 p-6 overflow-y-auto bg-white relative">
-      <h2 class="text-lg font-semibold text-slate-800 mb-6 flex items-center gap-2">
-        <i class="fa-solid fa-timeline text-slate-400"></i> 剧本时间线预览
+    <div class="h-64 bg-slate-50 p-6 overflow-y-auto shrink-0 flex flex-col">
+      <h2 class="text-sm font-bold text-slate-800 mb-4 uppercase tracking-wider flex items-center gap-2">
+        <i class="fa-solid fa-sliders text-slate-400"></i> 属性检查器
       </h2>
       
-      <div class="relative timeline-line pl-8 pr-4" id="timeline-preview">
+      <div id="inspector-empty" class="flex-1 flex items-center justify-center text-slate-400 text-sm border-2 border-dashed border-slate-200 rounded-xl">
+        请在上方时间轴点击选择一个事件块进行编辑
+      </div>
+      
+      <div id="inspector-panel" style="display: none;" class="gap-8">
+        <input type="hidden" id="edit-id">
+        
+        <div class="w-1/4 space-y-4">
+          <div class="flex gap-2">
+            <div class="flex-1">
+              <label class="block text-xs font-bold text-slate-500 mb-1">开始 (毫秒)</label>
+              <input type="number" id="edit-start" oninput="updateItemFromInspector()" class="w-full px-2 py-2 bg-white border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-slate-800 outline-none">
+            </div>
+            <div class="flex-1">
+              <label class="block text-xs font-bold text-slate-500 mb-1">持续 (毫秒)</label>
+              <input type="number" id="edit-duration" oninput="updateItemFromInspector()" class="w-full px-2 py-2 bg-white border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-slate-800 outline-none">
+            </div>
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-slate-500 mb-1">动作类型</label>
+            <select id="edit-action" onchange="updateItemFromInspector(true)" class="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-slate-800 outline-none">
+              <option value="showText">✍️ 显示文字</option>
+              <option value="playSound">🎵 播放音频</option>
+              <option value="playAnimation">📦 触发动画</option>
+              <option value="playVideo">🎬 播放视频</option>
+            </select>
+          </div>
         </div>
-    </div>
 
+        <div class="flex-1 space-y-4">
+          <div>
+            <label class="block text-xs font-bold text-slate-500 mb-1">参数内容 / 文件名</label>
+            <div class="flex gap-2">
+              <input type="text" id="edit-value" oninput="updateItemFromInspector()" class="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-slate-800 outline-none" placeholder="输入文字或选择文件...">
+              <button onclick="document.getElementById('hiddenFilePicker').click()" class="bg-white border border-slate-300 hover:bg-slate-100 text-slate-600 px-4 py-2 rounded-lg text-sm transition shrink-0">
+                <i class="fa-solid fa-folder-open"></i> 浏览文件
+              </button>
+            </div>
+          </div>
+          <div class="pt-2">
+            <button onclick="deleteSelectedItem()" class="text-red-500 hover:bg-red-50 px-3 py-2 rounded-lg text-sm transition border border-red-200">
+              <i class="fa-solid fa-trash-can mr-1"></i> 删除此事件
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
   </main>
 
   <input type="file" id="hiddenFilePicker" class="hidden" onchange="handleFileSelected(event)">
 
   <script>
-    let events = [];
-    let currentUploadId = null;
-
-    // 获取图标的辅助函数
-    const getActionIcon = (action) => {
-      if (action === 'showText') return '<i class="fa-solid fa-font text-blue-500 bg-blue-100 p-2 rounded-full"></i>';
-      if (action === 'playSound') return '<i class="fa-solid fa-music text-purple-500 bg-purple-100 p-2 rounded-full"></i>';
-      if (action === 'playAnimation') return '<i class="fa-solid fa-cube text-orange-500 bg-orange-100 p-2 rounded-full"></i>';
-      return '<i class="fa-solid fa-bolt"></i>';
-    };
-
-    const getActionLabel = (action) => {
-      if (action === 'showText') return '动态文字';
-      if (action === 'playSound') return '播放音频';
-      if (action === 'playAnimation') return '触发动画';
-      return '未知';
-    };
-
-    // 1. 初始化添加一个事件
-    function addEvent() {
-      events.push({ id: Date.now(), time_ms: 0, action: 'showText', value: '' });
-      renderUI();
+    function getSafeTime(dateObj) {
+      if (typeof dateObj === 'number') return dateObj;
+      if (dateObj instanceof Date) return dateObj.getTime();
+      if (dateObj && typeof dateObj.valueOf === 'function') return dateObj.valueOf();
+      return 0;
     }
 
-    // 2. 删除事件
-    function deleteEvent(id) {
-      events = events.filter(e => e.id !== id);
-      renderUI();
-    }
+    const groups = new vis.DataSet([
+      { id: 'showText', content: '<i class="fa-solid fa-font text-blue-500 mr-2"></i>字幕轨' },
+      { id: 'playSound', content: '<i class="fa-solid fa-music text-purple-500 mr-2"></i>音频轨' },
+      { id: 'playAnimation', content: '<i class="fa-solid fa-cube text-orange-500 mr-2"></i>模型轨' },
+      { id: 'playVideo', content: '<i class="fa-solid fa-film text-rose-500 mr-2"></i>视频轨' }
+    ]);
 
-    // 3. 更新数据并重新渲染
-    function updateEvent(id, field, value) {
-      const ev = events.find(e => e.id === id);
-      if (ev) {
-        ev[field] = field === 'time_ms' ? (parseInt(value) || 0) : value;
+    const items = new vis.DataSet([]);
+    const container = document.getElementById('timeline-container');
+    
+    const options = {
+      height: '100%', start: 0, end: 15000, min: 0,
+      editable: { add: false, updateTime: true, updateGroup: true, remove: false },
+      groupOrder: function (a, b) {
+        const order = { 'playAnimation': 1, 'playVideo': 2, 'playSound': 3, 'showText': 4 };
+        return order[a.id] - order[b.id];
+      },
+      format: {
+        minorLabels: function(date) { return (getSafeTime(date) / 1000) + 's'; },
+        majorLabels: function() { return ''; }
+      },
+      snap: function (date) { return Math.round(getSafeTime(date) / 100) * 100; },
+      onMove: function (item, callback) {
+        item.action = item.group;
+        item.className = getClassName(item.action);
+        callback(item);
+        if(document.getElementById('edit-id').value == item.id) showInspector(item);
       }
-      renderUI(); // 实时更新时间线
+    };
+
+    let timeline = null;
+    window.onload = function() {
+      try {
+        timeline = new vis.Timeline(container, items, groups, options);
+        timeline.on('select', function (properties) {
+          if (properties.items.length > 0) showInspector(items.get(properties.items[0]));
+          else hideInspector();
+        });
+      } catch (e) { console.error(e); }
+    };
+
+    function getClassName(action) {
+      const map = { showText: 'item-text', playSound: 'item-audio', playAnimation: 'item-model', playVideo: 'item-video' };
+      return map[action] || 'item-text';
     }
 
-    // 4. 触发本地文件选择
-    function triggerFileSelect(id) {
-      currentUploadId = id;
-      document.getElementById('hiddenFilePicker').click();
+    function getDefaultLabel(action) {
+      const map = { showText: '新字幕', playSound: '新音频', playAnimation: '新模型', playVideo: '新视频' };
+      return map[action] || '未命名';
     }
 
-    // 5. 处理文件选择结果（提取文件名）
+    function addClip(action) {
+      if (!timeline) return;
+      const range = timeline.getWindow();
+      const centerTime = getSafeTime(range.start) + (getSafeTime(range.end) - getSafeTime(range.start)) / 2;
+      const startTime = Math.max(0, centerTime); 
+      
+      const newItem = {
+        id: Date.now(), group: action, action: action, content: getDefaultLabel(action), value: '',
+        start: startTime, end: startTime + 3000, // 默认分配3秒长度
+        className: getClassName(action)
+      };
+      items.add(newItem);
+      timeline.setSelection(newItem.id);
+      showInspector(newItem);
+    }
+
+    function showInspector(item) {
+      document.getElementById('inspector-empty').style.display = 'none';
+      document.getElementById('inspector-panel').style.display = 'flex';
+      
+      document.getElementById('edit-id').value = item.id;
+      document.getElementById('edit-start').value = getSafeTime(item.start);
+      // 升级2：计算并显示 Duration
+      document.getElementById('edit-duration').value = getSafeTime(item.end) - getSafeTime(item.start);
+      document.getElementById('edit-action').value = item.action;
+      document.getElementById('edit-value').value = item.value;
+    }
+
+    function hideInspector() {
+      document.getElementById('inspector-empty').style.display = 'flex';
+      document.getElementById('inspector-panel').style.display = 'none';
+      document.getElementById('edit-id').value = '';
+    }
+
+    function updateItemFromInspector(actionChanged = false) {
+      const id = Number(document.getElementById('edit-id').value);
+      if (!id) return;
+      
+      const startMs = parseInt(document.getElementById('edit-start').value) || 0;
+      const durationMs = parseInt(document.getElementById('edit-duration').value) || 1000;
+      const action = document.getElementById('edit-action').value;
+      const value = document.getElementById('edit-value').value;
+      
+      const item = items.get(id);
+      if(item) {
+        item.start = startMs;
+        item.end = startMs + durationMs; // 升级3：根据填写计算实际结束点
+        item.value = value;
+        item.content = value || getDefaultLabel(action);
+        
+        if (actionChanged) {
+          item.action = action; item.group = action; item.className = getClassName(action);
+        }
+        items.update(item);
+      }
+    }
+
+    function deleteSelectedItem() {
+      const id = Number(document.getElementById('edit-id').value);
+      if(id) { items.remove(id); hideInspector(); }
+    }
+
     function handleFileSelected(e) {
       if (!e.target.files.length) return;
-      const fileName = e.target.files[0].name;
-      // 更新对应事件的 value，并清空 input 以便下次选择同名文件
-      updateEvent(currentUploadId, 'value', fileName);
+      document.getElementById('edit-value').value = e.target.files[0].name;
+      updateItemFromInspector();
       e.target.value = ''; 
     }
 
-    // 6. 核心渲染逻辑 (同时渲染左侧表单和右侧时间线)
-    function renderUI() {
-      // 对事件按照时间进行排序
-      const sortedEvents = [...events].sort((a, b) => a.time_ms - b.time_ms);
-
-      const editorContainer = document.getElementById('editor-container');
-      const timelineContainer = document.getElementById('timeline-preview');
-      
-      editorContainer.innerHTML = '';
-      timelineContainer.innerHTML = '';
-
-      if (sortedEvents.length === 0) {
-        timelineContainer.innerHTML = '<div class="text-slate-400 text-center mt-10">暂无事件，请在左侧添加</div>';
-      }
-
-      sortedEvents.forEach((ev, index) => {
-        // --- 渲染左侧表单 ---
-        const needsFileBtn = ev.action !== 'showText';
-        editorContainer.innerHTML += `
-          <div class="bg-white border border-slate-200 rounded-xl p-5 shadow-sm relative group transition hover:border-indigo-300">
-            <button onclick="deleteEvent(${ev.id})" class="absolute top-4 right-4 text-slate-400 hover:text-red-500 transition">
-              <i class="fa-solid fa-trash-can"></i>
-            </button>
-            
-            <div class="flex gap-4 mb-4">
-              <div class="flex-1">
-                <label class="block text-xs font-semibold text-slate-500 mb-1">触发时间 (毫秒)</label>
-                <div class="relative">
-                  <input type="number" value="${ev.time_ms}" onchange="updateEvent(${ev.id}, 'time_ms', this.value)" class="w-full pl-3 pr-10 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white transition">
-                  <span class="absolute right-3 top-2 text-xs text-slate-400">ms</span>
-                </div>
-              </div>
-              <div class="flex-1">
-                <label class="block text-xs font-semibold text-slate-500 mb-1">事件类型</label>
-                <select onchange="updateEvent(${ev.id}, 'action', this.value)" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white transition">
-                  <option value="showText" ${ev.action === 'showText' ? 'selected' : ''}>✍️ 显示文字/对白</option>
-                  <option value="playSound" ${ev.action === 'playSound' ? 'selected' : ''}>🎵 播放音频/配音</option>
-                  <option value="playAnimation" ${ev.action === 'playAnimation' ? 'selected' : ''}>📦 播放 3D 动画</option>
-                  <option value="playVideo" ${ev.action === 'playVideo' ? 'selected' : ''}>🎬 播放视频 (MP4)</option>
-                </select>
-              </div>
-            </div>
-
-            <div>
-              <label class="block text-xs font-semibold text-slate-500 mb-1">内容 / 文件名</label>
-              <div class="flex gap-2">
-                <input type="text" value="${ev.value}" onchange="updateEvent(${ev.id}, 'value', this.value)" placeholder="${needsFileBtn ? '例如: bgm.mp3' : '输入你要显示的文字...'}" class="flex-1 px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white transition">
-                ${needsFileBtn ? `
-                  <button onclick="triggerFileSelect(${ev.id})" class="bg-slate-200 hover:bg-slate-300 text-slate-700 px-3 py-2 rounded-lg text-sm transition" title="选择本地文件提取名称">
-                    <i class="fa-solid fa-folder-open"></i>
-                  </button>
-                ` : ''}
-              </div>
-            </div>
-          </div>
-        `;
-
-        // --- 渲染右侧时间线 ---
-        let displayValue = ev.value || '<span class="text-slate-300 italic">空</span>';
-        timelineContainer.innerHTML += `
-          <div class="relative mb-8 z-10">
-            <div class="absolute -left-[45px] top-1 bg-white border-4 border-slate-100 rounded-full">
-              ${getActionIcon(ev.action)}
-            </div>
-            <div class="bg-slate-50 border border-slate-100 rounded-lg p-4 shadow-sm relative">
-              <div class="absolute -left-2 top-4 w-4 h-4 bg-slate-50 border-t border-l border-slate-100 transform -rotate-45"></div>
-              <div class="flex justify-between items-start mb-2">
-                <span class="text-sm font-bold text-slate-800">${getActionLabel(ev.action)}</span>
-                <span class="text-xs font-mono bg-indigo-100 text-indigo-700 px-2 py-1 rounded">T = ${ev.time_ms / 1000} 秒</span>
-              </div>
-              <p class="text-sm text-slate-600 truncate bg-white p-2 rounded border border-slate-100">
-                ${displayValue}
-              </p>
-            </div>
-          </div>
-        `;
-      });
+    function zoomTimeline(percentage) {
+      if (!timeline) return;
+      const range = timeline.getWindow();
+      const startMs = getSafeTime(range.start), endMs = getSafeTime(range.end);
+      const interval = endMs - startMs;
+      timeline.setWindow({ start: startMs - interval * percentage * 0.2, end: endMs + interval * percentage * 0.2 });
     }
 
-    // 7. 导出 JSON 功能
     function exportJSON() {
-      // 按照时间排序后导出
-      const finalTimeline = [...events]
-        .sort((a, b) => a.time_ms - b.time_ms)
-        .map(({id, ...rest}) => rest); // 去掉内部 id
+      if (!items) return;
+      const finalTimeline = items.get().map(item => ({
+        time_ms: getSafeTime(item.start),
+        duration_ms: getSafeTime(item.end) - getSafeTime(item.start), // 升级4：导出 duration_ms
+        action: item.action,
+        value: item.value || ''
+      })).sort((a, b) => a.time_ms - b.time_ms); 
 
-      const config = {
-        targetImage: document.getElementById('targetImage').value,
-        timeline: finalTimeline
-      };
-      
+      const config = { targetImage: document.getElementById('targetImage').value, timeline: finalTimeline };
       const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(config, null, 2));
-      const downloadAnchorNode = document.createElement('a');
-      downloadAnchorNode.setAttribute("href", dataStr);
-      downloadAnchorNode.setAttribute("download", "story_config.json");
-      document.body.appendChild(downloadAnchorNode);
-      downloadAnchorNode.click();
-      downloadAnchorNode.remove();
+      const a = document.createElement('a');
+      a.href = dataStr; a.download = "story_config.json";
+      document.body.appendChild(a); a.click(); a.remove();
     }
-
-    // 启动时初始化
-    addEvent();
   </script>
 </body>
 </html>
