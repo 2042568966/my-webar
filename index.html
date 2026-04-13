@@ -3,118 +3,161 @@
   <head>
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta charset="utf-8" />
-    <title>AR 调试版</title>
+    <title>AR 故事播放器 - 支持音视频</title>
     <script src="https://aframe.io/releases/1.3.0/aframe.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.2/dist/mindar-image-aframe.prod.js"></script>
+    <script src="https://cdn.jsdelivr.net/gh/donmccurdy/aframe-extras@v6.1.1/dist/aframe-extras.min.js"></script>
     
     <style>
-      /* 调试面板的样式 */
-      #debug-console {
-        position: fixed;
-        bottom: 0;
-        left: 0;
-        width: 100%;
-        height: 25vh; /* 占据屏幕底部 25% 的高度 */
-        background: rgba(0, 0, 0, 0.85);
-        color: #00FF00;
-        font-family: monospace;
-        font-size: 14px;
-        overflow-y: auto;
-        z-index: 9999;
-        padding: 10px;
-        box-sizing: border-box;
-      }
-      .log-error { color: #FF4444; }
-      .log-warn { color: #FFAA00; }
-      .log-info { color: #00FFFF; }
+      #debug-console { position: fixed; top: 0; left: 0; width: 100%; height: 15vh; background: rgba(0, 0, 0, 0.7); color: #00FF00; font-family: monospace; font-size: 12px; overflow-y: auto; z-index: 9999; padding: 10px; box-sizing: border-box; pointer-events: none; }
+      .log-error { color: #FF4444; } .log-warn { color: #FFAA00; }
+      #subtitle-container { position: fixed; bottom: 10%; left: 5%; width: 90%; text-align: center; z-index: 9998; pointer-events: none; opacity: 0; transition: opacity 0.5s ease-in-out; }
+      #subtitle-text { display: inline-block; background: rgba(0, 0, 0, 0.6); color: white; padding: 10px 20px; border-radius: 8px; font-size: 18px; text-shadow: 1px 1px 2px black; }
+      
+      /* [新增] 用户交互遮罩：解除移动端音视频播放限制 */
+      #start-screen { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); z-index: 10000; display: flex; flex-direction: column; justify-content: center; align-items: center; color: white; font-family: sans-serif; }
+      #start-btn { padding: 15px 40px; font-size: 20px; background: #4CC3D9; border: none; border-radius: 30px; color: white; margin-top: 20px; cursor: pointer; box-shadow: 0 4px 15px rgba(76,195,217,0.4); }
     </style>
   </head>
   <body style="margin: 0; overflow: hidden;">
     
-    <div id="debug-console">🚀 AR 调试控制台已启动...<br></div>
+    <div id="start-screen">
+      <h2>📖 准备好进入小红帽的故事了吗？</h2>
+      <p>请确保已开启手机音量</p>
+      <button id="start-btn">点击进入 AR 世界</button>
+    </div>
+
+    <div id="debug-console">🚀 AR 控制台已启动...<br></div>
+    <div id="subtitle-container"><div id="subtitle-text"></div></div>
 
     <script>
-      // 1. 劫持浏览器的 console，让它显示在我们的黑色面板里
       const debugConsole = document.getElementById('debug-console');
       function printLog(msg, className = '') {
         debugConsole.innerHTML += `<div class="${className}">> ${msg}</div>`;
-        debugConsole.scrollTop = debugConsole.scrollHeight; // 自动滚动到底部
+        debugConsole.scrollTop = debugConsole.scrollHeight;
       }
 
-      // 捕获系统报错 (如 404 文件找不到)
-      window.onerror = function(message, source, lineno, colno, error) {
-        printLog(`系统报错: ${message}`, 'log-error');
-      };
+      let activeAudio = null;       
+      let currentModelEl = null;    
+      let activeTimers = [];        
+      
+      // [新增] 视频状态管理
+      let activeVideoHtml = null;   // 底层的 html5 video 标签
+      let activeVideoEl = null;     // A-Frame 的 a-video 实体
 
-      // 2. 监听 MindAR 的核心事件
+      // 解除媒体限制逻辑
+      document.getElementById('start-btn').addEventListener('click', function() {
+        document.getElementById('start-screen').style.display = 'none';
+        printLog("✅ 用户已授权互动，媒体播放已解锁");
+      });
+
       document.addEventListener("DOMContentLoaded", function() {
-        const sceneEl = document.querySelector('a-scene');
         const targetEl = document.querySelector('[mindar-image-target]');
+        const subtitleContainer = document.getElementById('subtitle-container');
+        const subtitleText = document.getElementById('subtitle-text');
 
-        printLog("正在请求摄像头权限并加载核心文件...", "log-info");
-
-        // 当 AR 引擎准备完毕（摄像头成功开启）
-        sceneEl.addEventListener("arReady", (event) => {
-          printLog("✅ MindAR 引擎启动成功！摄像头已开启。");
-          printLog("⏳ 正在加载 targets.mind 特征文件...");
-        });
-
-        // 当 AR 引擎启动失败
-        sceneEl.addEventListener("arError", (event) => {
-          printLog("❌ MindAR 启动失败！请检查摄像头权限，或换个浏览器测试。", 'log-error');
-        });
-
-        // 当成功扫描到识别图时...
         targetEl.addEventListener("targetFound", event => {
           printLog("🎯 发现目标图片！正在拉取剧本...");
           
-          // 动态读取同目录下的 JSON 配置文件
           fetch('./story_config.json')
             .then(response => response.json())
             .then(config => {
-              printLog("✅ 剧本加载成功！开始根据时间轴执行...");
-              
-              // 遍历时间轴，设定定时器触发动作
               config.timeline.forEach(step => {
-                setTimeout(() => {
+                let timer = setTimeout(() => {
                   
+                  // 1. 显示文字
                   if (step.action === 'showText') {
-                    printLog(`[特效] 显示文字: ${step.value}`);
-                    // 这里写 A-Frame 显示文字的代码，比如修改 <a-text> 的 value
-                    
-                  } else if (step.action === 'playSound') {
-                    printLog(`[特效] 播放声音: ${step.value}`);
-                    // 这里写 A-Frame 播放声音的代码
+                    subtitleText.innerText = step.value;
+                    subtitleContainer.style.opacity = 1;
+                    setTimeout(() => { subtitleContainer.style.opacity = 0; }, 3000);
+                  } 
+                  
+                  // 2. 播放声音
+                  else if (step.action === 'playSound') {
+                    if (activeAudio) activeAudio.pause(); 
+                    activeAudio = new Audio(step.value);
+                    activeAudio.play().catch(e => printLog("音频播放失败", 'log-error'));
                   }
                   
-                }, step.time_ms); // 根据设定的毫秒数延迟执行
+                  // 3. 播放 3D 模型
+                  else if (step.action === 'playAnimation') {
+                    if (currentModelEl) targetEl.removeChild(currentModelEl);
+                    if (activeVideoEl) { targetEl.removeChild(activeVideoEl); activeVideoHtml.pause(); } // 互斥清理
+                    
+                    currentModelEl = document.createElement('a-gltf-model');
+                    currentModelEl.setAttribute('src', step.value);
+                    currentModelEl.setAttribute('scale', '0.5 0.5 0.5'); 
+                    currentModelEl.setAttribute('animation-mixer', 'loop: once; clampWhenFinished: true'); 
+                    targetEl.appendChild(currentModelEl);
+                  }
+                  
+                  // 4. [新增] 播放 MP4 视频
+                  else if (step.action === 'playVideo') {
+                    printLog(`[视频] 加载视频: ${step.value}`);
+                    
+                    // 清理上一个视频或模型，防止重叠
+                    if (currentModelEl) { targetEl.removeChild(currentModelEl); currentModelEl = null; }
+                    if (activeVideoEl) { targetEl.removeChild(activeVideoEl); activeVideoHtml.pause(); }
+
+                    // A. 创建底层的 HTML5 <video> 元素
+                    activeVideoHtml = document.createElement('video');
+                    activeVideoHtml.id = 'ar-video-' + Date.now();
+                    activeVideoHtml.src = step.value;
+                    activeVideoHtml.crossOrigin = 'anonymous';
+                    activeVideoHtml.loop = false; // 是否循环播放？这里设为否
+                    
+                    // 【极度重要】如果不加这两行，iOS 扫到图时会直接全屏打开视频，AR 崩溃！
+                    activeVideoHtml.setAttribute('playsinline', ''); 
+                    activeVideoHtml.setAttribute('webkit-playsinline', '');
+                    
+                    document.body.appendChild(activeVideoHtml);
+
+                    // B. 创建 A-Frame 实体来显示这个视频
+                    activeVideoEl = document.createElement('a-video');
+                    activeVideoEl.setAttribute('src', '#' + activeVideoHtml.id);
+                    // 假设视频是 16:9 比例，调整宽高使其不变形
+                    activeVideoEl.setAttribute('width', '1.6');
+                    activeVideoEl.setAttribute('height', '0.9');
+                    // position 设置在图片正上方悬浮
+                    activeVideoEl.setAttribute('position', '0 0.5 0'); 
+                    
+                    targetEl.appendChild(activeVideoEl);
+                    
+                    // C. 播放
+                    activeVideoHtml.play().catch(e => printLog("视频播放失败，请确认点击了开始按钮", 'log-error'));
+                  }
+                  
+                }, step.time_ms);
+                activeTimers.push(timer);
               });
-              
-            })
-            .catch(error => printLog("❌ 读取剧本失败", 'log-error'));
+            });
         });
 
-        // 当识别图离开摄像头视野
+        // ⚠️ 目标丢失清理
         targetEl.addEventListener("targetLost", event => {
-          printLog("⚠️ 丢失目标图片！动画已隐藏。", "log-warn");
+          printLog("⚠️ 目标丢失，清理场景...");
+          activeTimers.forEach(t => clearTimeout(t));
+          activeTimers = [];
+          subtitleContainer.style.opacity = 0;
+          
+          if (activeAudio) { activeAudio.pause(); activeAudio.currentTime = 0; }
+          if (currentModelEl) { targetEl.removeChild(currentModelEl); currentModelEl = null; }
+          
+          // [新增] 视频清理逻辑
+          if (activeVideoEl) {
+            targetEl.removeChild(activeVideoEl);
+            activeVideoHtml.pause();
+            activeVideoHtml.currentTime = 0;
+            activeVideoHtml.remove(); // 从 DOM 中彻底删除
+            activeVideoEl = null;
+          }
         });
       });
     </script>
 
-    <a-scene mindar-image="imageTargetSrc: targets.mind;" 
-             color-space="sRGB" 
-             renderer="colorManagement: true, physicallyCorrectLights" 
-             vr-mode-ui="enabled: false" 
-             device-orientation-permission-ui="enabled: false">
-             
+    <a-scene mindar-image="imageTargetSrc: targets.mind;" color-space="sRGB" renderer="colorManagement: true, physicallyCorrectLights" vr-mode-ui="enabled: false" device-orientation-permission-ui="enabled: false">
       <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
-
-      <a-entity mindar-image-target="targetIndex: 0">
-        <a-box position="0 0 0" scale="0.5 0.5 0.5" color="#4CC3D9"
-               animation="property: rotation; to: 0 360 0; loop: true; dur: 2000; easing: linear">
-        </a-box>
-      </a-entity>
+      <a-entity mindar-image-target="targetIndex: 0"></a-entity>
     </a-scene>
-    
   </body>
 </html>

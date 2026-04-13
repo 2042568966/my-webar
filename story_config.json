@@ -8,7 +8,7 @@
     },
     {
       "time_ms": 100000,
-      "action": "playSound",
+      "action": "playVideo",
       "value": "《小红帽与大灰狼》绘本动画，经典故事.mp4"
     }
   ]
