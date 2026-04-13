@@ -2,12 +2,81 @@
 <html>
   <head>
     <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta charset="utf-8" />
+    <title>AR 调试版</title>
     <script src="https://aframe.io/releases/1.3.0/aframe.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.2/dist/mindar-image-aframe.prod.js"></script>
+    
+    <style>
+      /* 调试面板的样式 */
+      #debug-console {
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        width: 100%;
+        height: 25vh; /* 占据屏幕底部 25% 的高度 */
+        background: rgba(0, 0, 0, 0.85);
+        color: #00FF00;
+        font-family: monospace;
+        font-size: 14px;
+        overflow-y: auto;
+        z-index: 9999;
+        padding: 10px;
+        box-sizing: border-box;
+      }
+      .log-error { color: #FF4444; }
+      .log-warn { color: #FFAA00; }
+      .log-info { color: #00FFFF; }
+    </style>
   </head>
   <body style="margin: 0; overflow: hidden;">
     
-    <a-scene mindar-image="imageTargetSrc: targets.mind;"
+    <div id="debug-console">🚀 AR 调试控制台已启动...<br></div>
+
+    <script>
+      // 1. 劫持浏览器的 console，让它显示在我们的黑色面板里
+      const debugConsole = document.getElementById('debug-console');
+      function printLog(msg, className = '') {
+        debugConsole.innerHTML += `<div class="${className}">> ${msg}</div>`;
+        debugConsole.scrollTop = debugConsole.scrollHeight; // 自动滚动到底部
+      }
+
+      // 捕获系统报错 (如 404 文件找不到)
+      window.onerror = function(message, source, lineno, colno, error) {
+        printLog(`系统报错: ${message}`, 'log-error');
+      };
+
+      // 2. 监听 MindAR 的核心事件
+      document.addEventListener("DOMContentLoaded", function() {
+        const sceneEl = document.querySelector('a-scene');
+        const targetEl = document.querySelector('[mindar-image-target]');
+
+        printLog("正在请求摄像头权限并加载核心文件...", "log-info");
+
+        // 当 AR 引擎准备完毕（摄像头成功开启）
+        sceneEl.addEventListener("arReady", (event) => {
+          printLog("✅ MindAR 引擎启动成功！摄像头已开启。");
+          printLog("⏳ 正在加载 targets.mind 特征文件...");
+        });
+
+        // 当 AR 引擎启动失败
+        sceneEl.addEventListener("arError", (event) => {
+          printLog("❌ MindAR 启动失败！请检查摄像头权限，或换个浏览器测试。", 'log-error');
+        });
+
+        // 当成功扫描到识别图！
+        targetEl.addEventListener("targetFound", event => {
+          printLog("🎯 发现目标图片！(小红帽) 正在渲染 3D 动画...");
+        });
+
+        // 当识别图离开摄像头视野
+        targetEl.addEventListener("targetLost", event => {
+          printLog("⚠️ 丢失目标图片！动画已隐藏。", "log-warn");
+        });
+      });
+    </script>
+
+    <a-scene mindar-image="imageTargetSrc: targets.mind;" 
              color-space="sRGB" 
              renderer="colorManagement: true, physicallyCorrectLights" 
              vr-mode-ui="enabled: false" 
@@ -16,11 +85,10 @@
       <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
 
       <a-entity mindar-image-target="targetIndex: 0">
-        
         <a-box position="0 0 0" scale="0.5 0.5 0.5" color="#4CC3D9"
                animation="property: rotation; to: 0 360 0; loop: true; dur: 2000; easing: linear">
         </a-box>
-        </a-entity>
+      </a-entity>
     </a-scene>
     
   </body>
