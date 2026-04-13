@@ -64,9 +64,34 @@
           printLog("❌ MindAR 启动失败！请检查摄像头权限，或换个浏览器测试。", 'log-error');
         });
 
-        // 当成功扫描到识别图！
+        // 当成功扫描到识别图时...
         targetEl.addEventListener("targetFound", event => {
-          printLog("🎯 发现目标图片！(小红帽) 正在渲染 3D 动画...");
+          printLog("🎯 发现目标图片！正在拉取剧本...");
+          
+          // 动态读取同目录下的 JSON 配置文件
+          fetch('./story_config.json')
+            .then(response => response.json())
+            .then(config => {
+              printLog("✅ 剧本加载成功！开始根据时间轴执行...");
+              
+              // 遍历时间轴，设定定时器触发动作
+              config.timeline.forEach(step => {
+                setTimeout(() => {
+                  
+                  if (step.action === 'showText') {
+                    printLog(`[特效] 显示文字: ${step.value}`);
+                    // 这里写 A-Frame 显示文字的代码，比如修改 <a-text> 的 value
+                    
+                  } else if (step.action === 'playSound') {
+                    printLog(`[特效] 播放声音: ${step.value}`);
+                    // 这里写 A-Frame 播放声音的代码
+                  }
+                  
+                }, step.time_ms); // 根据设定的毫秒数延迟执行
+              });
+              
+            })
+            .catch(error => printLog("❌ 读取剧本失败", 'log-error'));
         });
 
         // 当识别图离开摄像头视野
