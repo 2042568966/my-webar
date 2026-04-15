@@ -3,7 +3,7 @@
   <head>
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta charset="utf-8" />
-    <title>AR 视频调试播放器</title>
+    <title>AR 故事播放器 - 预加载版</title>
     <script src="https://aframe.io/releases/1.3.0/aframe.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.2/dist/mindar-image-aframe.prod.js"></script>
     
@@ -12,14 +12,14 @@
       #subtitle-container { position: fixed; bottom: 10%; left: 5%; width: 90%; text-align: center; z-index: 9998; pointer-events: none; opacity: 0; transition: opacity 0.5s; }
       #subtitle-text { display: inline-block; background: rgba(0, 0, 0, 0.6); color: white; padding: 10px 20px; border-radius: 8px; font-size: 16px; }
       #start-screen { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #000; z-index: 10000; display: flex; flex-direction: column; justify-content: center; align-items: center; color: white; }
-      #start-btn { padding: 15px 30px; background: #4CC3D9; border: none; border-radius: 5px; color: white; cursor: pointer; }
+      #start-btn { padding: 15px 30px; background: #4CC3D9; border: none; border-radius: 5px; color: white; cursor: pointer; font-size: 18px; font-weight: bold;}
     </style>
   </head>
   <body>
     
     <div id="start-screen">
-      <h3>小红帽 AR 剧场</h3>
-      <button id="start-btn">点击授权媒体播放</button>
+      <h3 style="margin-bottom: 20px;">📖 小红帽 AR 剧场</h3>
+      <button id="start-btn">点击进入并解锁媒体</button>
     </div>
 
     <div id="debug-console">> 引擎初始化...<br></div>
@@ -32,75 +32,116 @@
         debugConsole.scrollTop = debugConsole.scrollHeight;
       }
 
+      let globalConfig = null;
+      let preloadedVideos = {}; // 存储预加载的视频对象
       let activeTimers = [];
       let activeMedia = [];
 
+      // 1. 页面一打开，立刻在后台拉取剧本
+      fetch('./story_config.json')
+        .then(res => res.json())
+        .then(data => { globalConfig = data; printLog("✅ 剧本已就绪，等待用户点击开始"); })
+        .catch(e => printLog("❌ 找不到 story_config.json 文件", "red"));
+
+      // 2. 最核心的一步：在用户点击按钮的瞬间，预加载并解锁所有视频！
       document.getElementById('start-btn').onclick = () => {
         document.getElementById('start-screen').style.display = 'none';
-        printLog("✅ 权限已解锁");
+        printLog("🔓 正在解锁浏览器媒体限制...");
+
+        if (globalConfig && globalConfig.timeline) {
+          globalConfig.timeline.forEach(step => {
+            if (step.action === 'playVideo') {
+              // 创建隐藏的 video 标签
+              let v = document.createElement('video');
+              v.id = 'vid_' + step.time_ms;
+              v.src = step.value; // 如果这里是中文名，必定失败！请确保改成了英文
+              v.crossOrigin = "anonymous";
+              v.setAttribute('playsinline', '');
+              v.setAttribute('webkit-playsinline', '');
+              v.style.display = 'none';
+              
+              // 关键解锁操作：静音播放然后立刻暂停
+              v.muted = true; 
+              v.play().then(() => {
+                v.pause();
+                v.currentTime = 0;
+                v.muted = false; // 解除静音，准备后面真正的播放
+                printLog(`📦 视频 [${step.value}] 解锁成功`);
+              }).catch(e => printLog(`❌ 视频解锁失败: ${e.message}`, "orange"));
+
+              document.body.appendChild(v);
+              preloadedVideos[step.time_ms] = v; // 存入字典备用
+            }
+          });
+        }
       };
 
+      // 3. AR 核心逻辑
       document.addEventListener("DOMContentLoaded", function() {
         const targetEl = document.querySelector('[mindar-image-target]');
         const subtitleContainer = document.getElementById('subtitle-container');
         const subtitleText = document.getElementById('subtitle-text');
 
         targetEl.addEventListener("targetFound", () => {
-          printLog("🎯 识别成功，加载剧本...");
+          printLog("🎯 发现目标，开始演出...");
           
-          fetch('./story_config.json')
-            .then(res => res.json())
-            .then(config => {
-              config.timeline.forEach(step => {
-                let startT = setTimeout(() => {
+          if(!globalConfig) return;
+
+          globalConfig.timeline.forEach(step => {
+            let startT = setTimeout(() => {
+              
+              // --- 动作：显示文字 ---
+              if (step.action === 'showText') {
+                subtitleText.innerText = step.value;
+                subtitleContainer.style.opacity = 1;
+                setTimeout(() => { if(subtitleText.innerText === step.value) subtitleContainer.style.opacity = 0; }, step.duration_ms);
+              } 
+              
+              // --- 动作：播放视频 ---
+              else if (step.action === 'playVideo') {
+                printLog(`🎬 挂载视频`);
+                // 从预加载池里拿出已经解锁的视频
+                let v = preloadedVideos[step.time_ms]; 
+                
+                if (v) {
+                  // 创建 A-Frame 实体来显示它
+                  let ve = document.createElement('a-video');
+                  ve.setAttribute('src', '#' + v.id);
+                  ve.setAttribute('width', '1.6');
+                  ve.setAttribute('height', '0.9');
+                  ve.setAttribute('position', '0 0.5 0.1'); 
+                  targetEl.appendChild(ve);
                   
-                  if (step.action === 'showText') {
-                    subtitleText.innerText = step.value;
-                    subtitleContainer.style.opacity = 1;
-                    setTimeout(() => { if(subtitleText.innerText === step.value) subtitleContainer.style.opacity = 0; }, step.duration_ms);
-                  } 
-                  
-                  else if (step.action === 'playVideo') {
-                    printLog(`🎬 准备加载视频: ${step.value}`);
-                    
-                    const v = document.createElement('video');
-                    v.src = encodeURI(step.value); // 自动处理文件名转义
-                    v.setAttribute('playsinline', '');
-                    v.setAttribute('webkit-playsinline', '');
-                    v.crossOrigin = "anonymous";
-                    v.style.display = 'none';
-                    document.body.appendChild(v);
+                  // 真正的播放
+                  v.play();
+                  activeMedia.push({html: v, el: ve});
 
-                    // 视频状态监控
-                    v.onplay = () => printLog("▶️ 视频开始播放");
-                    v.onerror = (e) => printLog(`❌ 视频加载失败，请检查文件名或格式: ${v.error.message}`, 'red');
-
-                    const ve = document.createElement('a-video');
-                    ve.setAttribute('src', v);
-                    ve.setAttribute('width', '2');
-                    ve.setAttribute('height', '1.125'); // 16:9
-                    ve.setAttribute('position', '0 0 0.1'); // 略微浮起，防止深度冲突
-                    targetEl.appendChild(ve);
-                    activeMedia.push({html: v, el: ve});
-
-                    v.play().catch(err => printLog("🚫 播放被浏览器拦截", 'orange'));
-
-                    // 持续时间结束后移除
-                    setTimeout(() => {
-                      if (ve.parentNode) ve.parentNode.removeChild(ve);
-                      v.pause(); v.remove();
-                    }, step.duration_ms);
-                  }
-                }, step.time_ms);
-                activeTimers.push(startT);
-              });
-            });
+                  // 持续时间到了之后清理
+                  setTimeout(() => {
+                    if (ve.parentNode) ve.parentNode.removeChild(ve);
+                    v.pause();
+                    v.currentTime = 0;
+                  }, step.duration_ms);
+                } else {
+                  printLog("❌ 找不到预加载的视频对象", "red");
+                }
+              }
+            }, step.time_ms);
+            
+            activeTimers.push(startT);
+          });
         });
 
         targetEl.addEventListener("targetLost", () => {
-          printLog("⚠️ 追踪丢失");
+          printLog("⚠️ 目标丢失，暂停并清理");
           activeTimers.forEach(clearTimeout);
-          activeMedia.forEach(m => { if(m.el.parentNode) m.el.parentNode.removeChild(m.el); m.html.pause(); m.html.remove(); });
+          activeTimers = [];
+          
+          activeMedia.forEach(m => { 
+            if(m.el.parentNode) m.el.parentNode.removeChild(m.el); 
+            m.html.pause(); 
+            m.html.currentTime = 0; 
+          });
           activeMedia = [];
           subtitleContainer.style.opacity = 0;
         });
