@@ -3,7 +3,7 @@
   <head>
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta charset="utf-8" />
-    <title>AR 故事播放器 - 稳定防抖版</title>
+    <title>AR 故事播放器 - 终极稳定版</title>
     <script src="https://aframe.io/releases/1.3.0/aframe.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.2/dist/mindar-image-aframe.prod.js"></script>
     
@@ -37,15 +37,16 @@
       let activeTimers = [];
       let activeMedia = [];
       
-      // 【新增】防抖控制变量
       let isPlaying = false; 
       let lostTimeout = null;
 
+      // 1. 获取 JSON
       fetch('./story_config.json')
         .then(res => res.json())
         .then(data => { globalConfig = data; printLog("✅ 剧本已就绪"); })
         .catch(e => printLog("❌ 找不到 story_config.json 文件", "red"));
 
+      // 2. 点击解锁媒体 (修复了中断报错)
       document.getElementById('start-btn').onclick = () => {
         document.getElementById('start-screen').style.display = 'none';
         printLog("🔓 正在解锁浏览器媒体限制...");
@@ -59,41 +60,51 @@
               v.crossOrigin = "anonymous";
               v.setAttribute('playsinline', '');
               v.setAttribute('webkit-playsinline', '');
+              v.setAttribute('preload', 'auto');
               v.style.display = 'none';
               
               v.muted = true; 
-              v.play().then(() => {
-                v.pause();
-                v.currentTime = 0;
-                v.muted = false; 
-                printLog(`📦 视频解锁成功`);
-              }).catch(e => printLog(`❌ 视频解锁失败: ${e.message}`, "orange"));
-
               document.body.appendChild(v);
               preloadedVideos[step.time_ms] = v; 
+
+              // 【核心修复：防中断的 Promise 链】
+              const playPromise = v.play();
+              if (playPromise !== undefined) {
+                playPromise.then(() => {
+                  // 延迟 50 毫秒再暂停，确保浏览器状态机已切换到 playing
+                  setTimeout(() => {
+                    v.pause();
+                    v.currentTime = 0;
+                    v.muted = false; 
+                    printLog(`📦 视频解锁成功`);
+                  }, 50);
+                }).catch(e => {
+                  printLog(`⚠️ 视频预加载可能被拦截: ${e.message}`, "orange");
+                });
+              }
             }
           });
         }
       };
 
+      // 3. AR 核心执行
       document.addEventListener("DOMContentLoaded", function() {
         const targetEl = document.querySelector('[mindar-image-target]');
         const subtitleContainer = document.getElementById('subtitle-container');
         const subtitleText = document.getElementById('subtitle-text');
 
         targetEl.addEventListener("targetFound", () => {
-          // 【核心修复：防抖】如果之前是“疑似丢失”状态，现在找回来了，那就取消清理！
           if (lostTimeout) {
             clearTimeout(lostTimeout);
             lostTimeout = null;
             printLog("🎯 追踪恢复 (忽略微小闪烁)");
-            return; // 已经在这个时间线上了，直接 return，防止重复叠加视频
+            return; 
           }
           
-          if (isPlaying) return; // 如果已经在正常播放中，防抖
+          if (isPlaying) return; 
           isPlaying = true;
           
-          printLog("🎯 发现目标，开始演出...");
+          printLog("🎯 发现目标图片！开始执行剧本...");
           
           if(!globalConfig) return;
 
@@ -113,16 +124,18 @@
                 if (v) {
                   let ve = document.createElement('a-video');
                   ve.setAttribute('src', '#' + v.id);
-                  
-                  // 【核心修复：缩放与对齐】
-                  // 将宽度设为 1（与识别图宽度一致），假设视频是 16:9，则高度为 9/16 = 0.5625
                   ve.setAttribute('width', '1');
                   ve.setAttribute('height', '0.5625'); 
-                  // 放在图片正中央，Z 轴抬高 0.05 防止与图片重叠闪烁
                   ve.setAttribute('position', '0 0 0.05'); 
                   
                   targetEl.appendChild(ve);
-                  v.play();
+                  
+                  // 捕获正式播放时的潜在报错
+                  const playPromise = v.play();
+                  if (playPromise !== undefined) {
+                    playPromise.catch(e => printLog(`❌ 播放失败: ${e.message}`, "red"));
+                  }
+                  
                   activeMedia.push({html: v, el: ve});
 
                   setTimeout(() => {
@@ -141,9 +154,8 @@
         targetEl.addEventListener("targetLost", () => {
           printLog("⚠️ 追踪疑似丢失，等待 1 秒确认...");
           
-          // 【核心修复：延迟清理】不马上清理，给 1 秒钟的缓冲期
           lostTimeout = setTimeout(() => {
-            printLog("🛑 追踪彻底丢失，清理场景");
+            printLog("🛑 目标丢失，清理场景...");
             isPlaying = false;
             
             activeTimers.forEach(clearTimeout);
@@ -151,19 +163,19 @@
             
             activeMedia.forEach(m => { 
               if(m.el.parentNode) m.el.parentNode.removeChild(m.el); 
-              m.html.pause(); 
-              m.html.currentTime = 0; 
+              // 捕获暂停时的中断报错
+              try { m.html.pause(); m.html.currentTime = 0; } catch(e){} 
             });
             activeMedia = [];
             subtitleContainer.style.opacity = 0;
             
             lostTimeout = null;
-          }, 1000); // 1000毫秒 = 1秒缓冲时间
+          }, 1000); 
         });
       });
     </script>
 
-    <a-scene mindar-image="imageTargetSrc: targets.mind; filterMinCF:0.0001; filterBeta:0.001;" color-space="sRGB" renderer="colorManagement: true, physicallyCorrectLights" vr-mode-ui="enabled: false" device-orientation-permission-ui="enabled: false">
+    <a-scene mindar-image="imageTargetSrc: targets.mind?v=3; filterMinCF:0.0001; filterBeta:0.001;" color-space="sRGB" renderer="colorManagement: true, physicallyCorrectLights" vr-mode-ui="enabled: false" device-orientation-permission-ui="enabled: false">
       <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
       <a-entity mindar-image-target="targetIndex: 0"></a-entity>
     </a-scene>
