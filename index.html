@@ -86,11 +86,11 @@
 
     <script>
       // 🐞 屏幕打印函数
-      const debugConsole = document.getElementById('debug-console');
-      function printLog(msg, color = '#00FF00') {
-        debugConsole.innerHTML += `<div style="color:${color}; margin-bottom:4px;">> ${msg}</div>`;
-        debugConsole.scrollTop = debugConsole.scrollHeight;
-      }
+      // const debugConsole = document.getElementById('debug-console');
+      // function //  printLog(msg, color = '#00FF00') {
+      //   debugConsole.innerHTML += `<div style="color:${color}; margin-bottom:4px;">> ${msg}</div>`;
+      //   debugConsole.scrollTop = debugConsole.scrollHeight;
+      // }
 
       let globalConfig = null;
       let preloadedVideos = {}; 
@@ -104,7 +104,7 @@
       let userClicked = false;
 
       // 1. 获取 JSON
-      printLog("开始拉取 story_config.json...");
+      //  printLog("开始拉取 story_config.json...");
       fetch('./story_config.json')
         .then(res => {
           if(!res.ok) throw new Error("网络响应不正常 " + res.status);
@@ -112,15 +112,15 @@
         })
         .then(data => { 
           globalConfig = data; 
-          printLog("✅ 剧本加载成功，包含 " + (data.pages ? data.pages.length : 0) + " 页数据"); 
+          //  printLog("✅ 剧本加载成功，包含 " + (data.pages ? data.pages.length : 0) + " 页数据"); 
         })
-        .catch(e => printLog("❌ 加载 JSON 失败: " + e.message, "#FF4444"));
+        .catch(e => //  printLog("❌ 加载 JSON 失败: " + e.message, "#FF4444"));
 
       // 2. 引擎初始化
       document.addEventListener("DOMContentLoaded", function() {
         const sceneEl = document.querySelector('a-scene');
         sceneEl.addEventListener("arReady", () => {
-          printLog("✅ AR 引擎底层就绪");
+          //  printLog("✅ AR 引擎底层就绪");
           engineReady = true;
           checkStart(); 
         });
@@ -134,7 +134,7 @@
       document.getElementById('start-btn').onclick = function() {
         this.style.pointerEvents = "none";
         this.innerText = "✨ 魔法唤醒中...";
-        printLog("🔓 用户点击，启动后台静默唤醒机制...");
+        //  printLog("🔓 用户点击，启动后台静默唤醒机制...");
         
         if (globalConfig && globalConfig.pages) {
           const total = globalConfig.pages.length;
@@ -164,15 +164,15 @@
                   v.pause(); 
                   v.currentTime = 0; 
                   v.muted = false; 
-                  printLog(`📦 第 ${page.index} 页就绪 (${current}/${total})`);
+                  //  printLog(`📦 第 ${page.index} 页就绪 (${current}/${total})`);
                 } catch(e) {
-                  printLog(`⚠️ 第 ${page.index} 页拦截: ${e.message}`, "#FFDD00");
+                  //  printLog(`⚠️ 第 ${page.index} 页拦截: ${e.message}`, "#FFDD00");
                 }
               }
 
               // 【核心优化】：只要加载到了设定的阈值，立刻放行用户！
               if (current === QUICK_START_COUNT && !uiUnlocked) {
-                printLog("🚀 首批魔法已准备好，提前放行！后续任务转入后台...");
+                //  printLog("🚀 首批魔法已准备好，提前放行！后续任务转入后台...");
                 uiUnlocked = true;
                 checkStart();
               }
@@ -188,7 +188,7 @@
           backgroundPreload();
 
         } else {
-           printLog("❌ 配置中找不到 pages 数组", "#FF4444");
+           //  //  printLog("❌ 配置中找不到 pages 数组", "#FF4444");
         }
       };
 
@@ -198,7 +198,7 @@
           setTimeout(() => { 
             document.getElementById('start-screen').style.display = 'none'; 
             document.getElementById('custom-scanner').style.display = 'flex';
-            printLog("🚀 界面切换完毕，可以开始扫描了");
+            //  printLog("🚀 界面切换完毕，可以开始扫描了");
           }, 500);
         }
       }
@@ -222,12 +222,12 @@
 
         targets.forEach((targetEl, idx) => {
           targetEl.addEventListener("targetFound", () => {
-            printLog(`🎯 触发 targetFound，识别序号: ${idx}`);
+            //  printLog(`🎯 触发 targetFound，识别序号: ${idx}`);
             
             if (lostTimeout) {
               clearTimeout(lostTimeout);
               lostTimeout = null;
-              printLog(`🎯 恢复序号: ${idx} (防抖)`);
+              //  printLog(`🎯 恢复序号: ${idx} (防抖)`);
             }
             
             if (currentPage === idx) return; 
@@ -237,14 +237,14 @@
             customScanner.style.display = 'none'; 
             
             if(!globalConfig) {
-               printLog("❌ 找不到全局配置数据", "#FF4444");
+               //  printLog("❌ 找不到全局配置数据", "#FF4444");
                return;
             }
 
             // 挂载视频
             let v = preloadedVideos[idx]; 
             if (v) {
-              printLog(`🎬 准备挂载视频，元素 ID: ${v.id}`);
+              //  printLog(`🎬 准备挂载视频，元素 ID: ${v.id}`);
               let ve = document.createElement('a-video');
               ve.setAttribute('src', '#' + v.id);
               ve.setAttribute('width', '1');
@@ -252,29 +252,29 @@
               ve.setAttribute('position', '0 0 0.05'); 
               
               targetEl.appendChild(ve);
-              printLog(`✅ 视频元素已添加到 3D 场景`);
+              //  printLog(`✅ 视频元素已添加到 3D 场景`);
               
               const playPromise = v.play();
               if (playPromise !== undefined) {
                  playPromise.then(() => {
-                    printLog(`▶️ 视频正式开始播放！`);
+                    //  printLog(`▶️ 视频正式开始播放！`);
                  }).catch(e => {
-                    printLog(`❌ 视频 play() 执行失败: ${e.message}`, "#FF4444");
+                    //  printLog(`❌ 视频 play() 执行失败: ${e.message}`, "#FF4444");
                  });
               }
               
               activeVideoHtml = v;
               activeVideoEl = ve;
             } else {
-               printLog(`❌ 找不到序号为 ${idx} 的预加载视频对象！`, "#FF4444");
+               //  printLog(`❌ 找不到序号为 ${idx} 的预加载视频对象！`, "#FF4444");
             }
           });
 
           targetEl.addEventListener("targetLost", () => {
-            printLog(`⚠️ 第 ${idx} 页目标丢失，等待防抖缓冲...`, "#FFDD00");
+            //  printLog(`⚠️ 第 ${idx} 页目标丢失，等待防抖缓冲...`, "#FFDD00");
             
             lostTimeout = setTimeout(() => {
-              printLog(`🛑 彻底丢失，清理屏幕`);
+              //  printLog(`🛑 彻底丢失，清理屏幕`);
               stopCurrentPage();
               customScanner.style.display = 'flex'; 
               lostTimeout = null;
