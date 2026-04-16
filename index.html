@@ -3,7 +3,7 @@
   <head>
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta charset="utf-8" />
-    <title>小红帽 AR 奇幻故事书</title>
+    <title>小红帽 AR 奇幻故事书 - 调试版</title>
     <script src="https://aframe.io/releases/1.3.0/aframe.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.2/dist/mindar-image-aframe.prod.js"></script>
     
@@ -12,6 +12,14 @@
       
       body { margin: 0; overflow: hidden; font-family: 'ZCOOL KuaiLe', 'Comic Sans MS', 'PingFang SC', sans-serif; }
       
+      /* 🐞 屏幕调试控制台 */
+      #debug-console { 
+        position: fixed; top: 0; left: 0; width: 100%; height: 25vh; 
+        background: rgba(0, 0, 0, 0.85); color: #00FF00; 
+        font-family: monospace; font-size: 12px; overflow-y: auto; 
+        z-index: 99999; padding: 10px; box-sizing: border-box; pointer-events: none; 
+      }
+
       /* 童话风启动屏 */
       #start-screen { 
         position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
@@ -37,7 +45,6 @@
         100% { transform: scale(1); box-shadow: 0 8px 15px rgba(255, 159, 67, 0.4); }
       }
 
-      /* 定制扫描框：针对正方形书本优化 */
       #custom-scanner {
         position: fixed; top: 0; left: 0; width: 100%; height: 100%;
         z-index: 9997; pointer-events: none; display: none;
@@ -59,7 +66,6 @@
         50% { transform: translateY(-10px); }
       }
 
-      /* 气泡字幕 */
       #subtitle-container { position: fixed; bottom: 8%; left: 5%; width: 90%; text-align: center; z-index: 9998; pointer-events: none; opacity: 0; transition: opacity 0.5s; }
       #subtitle-text { display: inline-block; background: #ffffff; color: #576574; padding: 15px 25px; border-radius: 25px; font-size: 18px; text-align: left; line-height: 1.5; max-width: 90%; word-wrap: break-word; box-shadow: 0 8px 20px rgba(0,0,0,0.15); border: 4px solid #ff9f43; position: relative; font-weight: bold; }
       #subtitle-text::after { content: ''; position: absolute; bottom: -14px; left: 50%; transform: translateX(-50%); border-width: 14px 14px 0; border-style: solid; border-color: #ff9f43 transparent transparent transparent; }
@@ -68,6 +74,8 @@
   </head>
   <body>
     
+    <div id="debug-console">> 系统启动中...<br></div>
+
     <div id="start-screen">
       <div class="welcome-card">
         <h2>🍄 小红帽奇幻故事书</h2>
@@ -84,40 +92,54 @@
     <div id="subtitle-container"><div id="subtitle-text"></div></div>
 
     <script>
+      // 🐞 屏幕打印函数
+      const debugConsole = document.getElementById('debug-console');
+      function printLog(msg, color = '#00FF00') {
+        debugConsole.innerHTML += `<div style="color:${color}; margin-bottom:4px;">> ${msg}</div>`;
+        debugConsole.scrollTop = debugConsole.scrollHeight;
+      }
+
       let globalConfig = null;
       let preloadedVideos = {}; 
       
       let activeVideoHtml = null;
       let activeVideoEl = null;
-      let currentPage = -1; // 记录当前正在播放的页码
+      let currentPage = -1; 
       let lostTimeout = null;
       
       let engineReady = false;
       let userClicked = false;
 
-      // 1. 获取最新版 JSON 数据
+      // 1. 获取 JSON
+      printLog("开始拉取 story_config.json...");
       fetch('./story_config.json')
-        .then(res => res.json())
-        .then(data => { globalConfig = data; })
-        .catch(e => console.error("找不到 story_config.json 剧本文件"));
+        .then(res => {
+          if(!res.ok) throw new Error("网络响应不正常 " + res.status);
+          return res.json();
+        })
+        .then(data => { 
+          globalConfig = data; 
+          printLog("✅ 剧本加载成功，包含 " + (data.pages ? data.pages.length : 0) + " 页数据"); 
+        })
+        .catch(e => printLog("❌ 加载 JSON 失败: " + e.message, "#FF4444"));
 
-      // 2. 监听引擎初始化完成
+      // 2. 引擎初始化
       document.addEventListener("DOMContentLoaded", function() {
         const sceneEl = document.querySelector('a-scene');
         sceneEl.addEventListener("arReady", () => {
-          console.log("AR 引擎就绪");
+          printLog("✅ AR 引擎底层就绪");
           engineReady = true;
           checkStart(); 
         });
       });
 
-      // 3. 点击按钮，预加载所有视频页面
+      // 3. 点击预加载
       document.getElementById('start-btn').onclick = function() {
         userClicked = true;
         this.innerText = "✨ 魔法唤醒中...";
-        this.style.animation = "none";
-        this.style.transform = "scale(0.95)";
         this.style.pointerEvents = "none";
+        
+        printLog("🔓 用户点击，开始预加载所有视频...");
         
         if (globalConfig && globalConfig.pages) {
           globalConfig.pages.forEach(page => {
@@ -137,11 +159,18 @@
               const playPromise = v.play();
               if (playPromise !== undefined) {
                 playPromise.then(() => {
-                  setTimeout(() => { v.pause(); v.currentTime = 0; v.muted = false; }, 50);
-                }).catch(e => console.warn(`视频 ${page.video} 预加载被拦截`));
+                  setTimeout(() => { 
+                    v.pause(); v.currentTime = 0; v.muted = false; 
+                    printLog(`📦 第 ${page.index} 页视频解锁成功`);
+                  }, 50);
+                }).catch(e => printLog(`⚠️ 第 ${page.index} 页视频被拦截: ${e.message}`, "#FFDD00"));
               }
+            } else {
+               printLog(`⚠️ 第 ${page.index} 页配置缺少 video 路径`, "#FFDD00");
             }
           });
+        } else {
+           printLog("❌ 配置中找不到 pages 数组", "#FF4444");
         }
         checkStart(); 
       };
@@ -152,25 +181,24 @@
           setTimeout(() => { 
             document.getElementById('start-screen').style.display = 'none'; 
             document.getElementById('custom-scanner').style.display = 'flex';
+            printLog("🚀 界面切换完毕，可以开始扫描了");
           }, 500);
         }
       }
 
-      // 4. 多页 AR 核心识别逻辑
+      // 4. 多页识别逻辑
       document.addEventListener("DOMContentLoaded", function() {
         const targets = document.querySelectorAll('[mindar-image-target]');
         const subtitleContainer = document.getElementById('subtitle-container');
         const subtitleText = document.getElementById('subtitle-text');
         const customScanner = document.getElementById('custom-scanner');
 
-        // 停止当前页播放的独立函数
         function stopCurrentPage() {
           if (activeVideoEl && activeVideoEl.parentNode) {
             activeVideoEl.parentNode.removeChild(activeVideoEl);
           }
           if (activeVideoHtml) {
             activeVideoHtml.pause();
-            // 不重置 currentTime，可以让视频在短暂丢失后继续接着播
           }
           activeVideoEl = null;
           activeVideoHtml = null;
@@ -178,68 +206,74 @@
           currentPage = -1;
         }
 
-        // 给每个识别节点绑定事件
         targets.forEach((targetEl, idx) => {
-          
-          // 目标出现
           targetEl.addEventListener("targetFound", () => {
-            console.log(`🎯 识别到第 ${idx} 页`);
+            printLog(`🎯 触发 targetFound，识别序号: ${idx}`);
             
-            // 清除丢失防抖计时器
             if (lostTimeout) {
               clearTimeout(lostTimeout);
               lostTimeout = null;
+              printLog(`🎯 恢复序号: ${idx} (防抖)`);
             }
             
-            // 如果已经在播这一页，直接返回
             if (currentPage === idx) return; 
             
-            // 如果正在播别的页（比如瞬间翻页），先停止上一页
             stopCurrentPage();
-            
             currentPage = idx;
-            customScanner.style.display = 'none'; // 隐藏扫描框
+            customScanner.style.display = 'none'; 
             
-            if(!globalConfig) return;
+            if(!globalConfig) {
+               printLog("❌ 找不到全局配置数据", "#FF4444");
+               return;
+            }
 
-            // 查找 JSON 中对应这一页的数据
             const pageData = globalConfig.pages.find(p => p.index === idx);
-            if (!pageData) return;
+            if (!pageData) {
+               printLog(`❌ 在 JSON 中找不到 index 为 ${idx} 的数据！`, "#FF4444");
+               return;
+            }
 
-            // 1. 显示当前页的字幕
+            // 显示字幕
             subtitleText.innerText = pageData.text;
             subtitleContainer.style.opacity = 1;
+            printLog(`💬 显示字幕: ${pageData.text.substring(0, 10)}...`);
 
-            // 2. 挂载并播放当前页的视频
+            // 挂载视频
             let v = preloadedVideos[idx]; 
             if (v) {
+              printLog(`🎬 准备挂载视频，元素 ID: ${v.id}`);
               let ve = document.createElement('a-video');
               ve.setAttribute('src', '#' + v.id);
-              
-              // 【方形绘本适配】: 视频宽度和高度设为 1:1，贴合方形书本
               ve.setAttribute('width', '1');
               ve.setAttribute('height', '1'); 
               ve.setAttribute('position', '0 0 0.05'); 
               
               targetEl.appendChild(ve);
+              printLog(`✅ 视频元素已添加到 3D 场景`);
               
               const playPromise = v.play();
-              if (playPromise !== undefined) playPromise.catch(e => console.error("视频播放失败"));
+              if (playPromise !== undefined) {
+                 playPromise.then(() => {
+                    printLog(`▶️ 视频正式开始播放！`);
+                 }).catch(e => {
+                    printLog(`❌ 视频 play() 执行失败: ${e.message}`, "#FF4444");
+                 });
+              }
               
-              // 记录当前的活跃视频实体
               activeVideoHtml = v;
               activeVideoEl = ve;
+            } else {
+               printLog(`❌ 找不到序号为 ${idx} 的预加载视频对象！`, "#FF4444");
             }
           });
 
-          // 目标丢失
           targetEl.addEventListener("targetLost", () => {
-            console.log(`⚠️ 第 ${idx} 页丢失`);
+            printLog(`⚠️ 第 ${idx} 页目标丢失，等待防抖缓冲...`, "#FFDD00");
             
-            // 加入 1 秒钟防抖缓冲，防止翻书时手抖
             lostTimeout = setTimeout(() => {
+              printLog(`🛑 彻底丢失，清理屏幕`);
               stopCurrentPage();
-              customScanner.style.display = 'flex'; // 重新呼出扫描框
+              customScanner.style.display = 'flex'; 
               lostTimeout = null;
             }, 1000); 
           });
@@ -247,7 +281,7 @@
       });
     </script>
 
-    <a-scene mindar-image="imageTargetSrc: targets.mind?v=6; uiScanning: no; uiLoading: no; filterMinCF:0.0001; filterBeta:0.001;" color-space="sRGB" renderer="colorManagement: true, physicallyCorrectLights" vr-mode-ui="enabled: false" device-orientation-permission-ui="enabled: false">
+    <a-scene mindar-image="imageTargetSrc: targets.mind?v=7; uiScanning: no; uiLoading: no; filterMinCF:0.0001; filterBeta:0.001;" color-space="sRGB" renderer="colorManagement: true, physicallyCorrectLights" vr-mode-ui="enabled: false" device-orientation-permission-ui="enabled: false">
       <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
       
       <a-entity mindar-image-target="targetIndex: 0"></a-entity>
