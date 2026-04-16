@@ -133,16 +133,24 @@
         });
       });
 
-      // 3. 点击预加载
-      document.getElementById('start-btn').onclick = function() {
-        userClicked = true;
-        this.innerText = "✨ 魔法唤醒中...";
+      // 新增一个状态锁，确保视频全部解锁后才进入
+      let videosUnlocked = false;
+
+      // 3. 点击预加载 (升级版：异步排队顺次解锁)
+      document.getElementById('start-btn').onclick = async function() {
         this.style.pointerEvents = "none";
-        
-        printLog("🔓 用户点击，开始预加载所有视频...");
+        printLog("🔓 用户点击，开始排队解锁视频...");
         
         if (globalConfig && globalConfig.pages) {
-          globalConfig.pages.forEach(page => {
+          const total = globalConfig.pages.length;
+          let current = 0;
+
+          // 使用 for...of 配合 await 实现真正的排队处理
+          for (let page of globalConfig.pages) {
+            current++;
+            // 动态更新按钮上的进度提示！
+            this.innerText = `✨ 魔法唤醒中 (${current}/${total})...`;
+            
             if (page.video) {
               let v = document.createElement('video');
               v.id = 'vid_' + page.index;
@@ -156,27 +164,35 @@
               document.body.appendChild(v);
               preloadedVideos[page.index] = v; 
 
-              const playPromise = v.play();
-              if (playPromise !== undefined) {
-                playPromise.then(() => {
-                  setTimeout(() => { 
-                    v.pause(); v.currentTime = 0; v.muted = false; 
-                    printLog(`📦 第 ${page.index} 页视频解锁成功`);
-                  }, 50);
-                }).catch(e => printLog(`⚠️ 第 ${page.index} 页视频被拦截: ${e.message}`, "#FFDD00"));
+              try {
+                // 等待当前视频真正 play 成功
+                await v.play();
+                // 成功后，给浏览器 50 毫秒的喘息时间再暂停
+                await new Promise(resolve => setTimeout(resolve, 50));
+                v.pause(); 
+                v.currentTime = 0; 
+                v.muted = false; 
+                printLog(`📦 第 ${page.index} 页解锁成功`);
+              } catch(e) {
+                // 即使某个视频报错，也捕获异常，不要让整个程序崩溃
+                printLog(`⚠️ 第 ${page.index} 页拦截: ${e.message}`, "#FFDD00");
               }
             } else {
                printLog(`⚠️ 第 ${page.index} 页配置缺少 video 路径`, "#FFDD00");
             }
-          });
+          }
         } else {
            printLog("❌ 配置中找不到 pages 数组", "#FF4444");
         }
+        
+        // 所有视频排队处理完毕！
+        videosUnlocked = true;
         checkStart(); 
       };
 
+      // 只有当引擎准备好，且视频全部排队解锁完，才真正切换界面
       function checkStart() {
-        if (engineReady && userClicked) {
+        if (engineReady && videosUnlocked) {
           document.getElementById('start-screen').style.opacity = '0';
           setTimeout(() => { 
             document.getElementById('start-screen').style.display = 'none'; 
