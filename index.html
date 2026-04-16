@@ -41,7 +41,7 @@
       let lostTimeout = null;
 
       // 1. 获取 JSON
-      fetch('./story_config.json')
+      fetch('story_config.json')
         .then(res => res.json())
         .then(data => { globalConfig = data; printLog("✅ 剧本已就绪"); })
         .catch(e => printLog("❌ 找不到 story_config.json 文件", "red"));
