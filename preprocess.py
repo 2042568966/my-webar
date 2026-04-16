@@ -53,10 +53,16 @@ def split_video_smartly(input_file, segment_length=20):
             '-i', input_file, '-c:v', 'libx264', '-crf', '23', '-c:a', 'aac', output_video
         ], check=True)
 
-        # 2. 提取该段的首帧作为识别图
+        # 设定你要求的尺寸 (宽度:高度)
+        # 建议尺寸控制在 800-1000 左右，太大会增加编译时间且不提升识别率
+        target_size = "800:800" 
+
+        # 2. 提取该段的首帧作为识别图，并缩放
         subprocess.run([
             'ffmpeg', '-y', '-hide_banner', '-loglevel', 'error',
-            '-i', output_video, '-frames:v', '1', output_frame
+            '-i', output_video, 
+            '-vf', f'scale={target_size}', # 【核心修改】调用 scale 滤镜
+            '-frames:v', '1', output_frame
         ], check=True)
 
         current_pos = best_cut
