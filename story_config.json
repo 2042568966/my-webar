@@ -2,18 +2,67 @@
   "pages": [
     {
       "index": 0,
-      "video": "page_0.mp4",
-      "text": "从前有个可爱的小姑娘，大家都叫她“小红帽”。"
+      "video": "page_0.mp4"
     },
     {
       "index": 1,
-      "video": "page_1.mp4",
-      "text": "小红帽提着篮子，走进了森林里..."
+      "video": "page_1.mp4"
     },
     {
       "index": 2,
-      "video": "page_2.mp4",
-      "text": "大灰狼看到了小红帽，躲在树后偷看。"
+      "video": "page_2.mp4"
+    },
+    {
+      "index": 3,
+      "video": "page_3.mp4"
+    },
+    {
+      "index": 4,
+      "video": "page_4.mp4"
+    },
+    {
+      "index": 5,
+      "video": "page_5.mp4"
+    },
+    {
+      "index": 6,
+      "video": "page_6.mp4"
+    },
+    {
+      "index": 7,
+      "video": "page_7.mp4"
+    },
+    {
+      "index": 8,
+      "video": "page_8.mp4"
+    },
+    {
+      "index":9,
+      "video": "page_9.mp4"
+    },
+    {
+      "index":10,
+      "video": "page_10.mp4"
+    },
+    {
+      "index":11,
+      "video": "page_11.mp4"
+    },
+    {
+      "index":12,
+      "video": "page_12.mp4"
+    },
+    {
+      "index":13,
+      "video": "page_13.mp4"
+    },
+    {
+      "index":14,
+      "video": "page_14.mp4"
+    },
+    {
+      "index":15,
+      "video": "page_15.mp4"
     }
   ]
 }
