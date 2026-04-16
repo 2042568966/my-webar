@@ -8,82 +8,62 @@
     <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.2/dist/mindar-image-aframe.prod.js"></script>
     
     <style>
-      /* 引入可爱的圆润中文字体（如果设备不支持会自动回退到系统圆体） */
       @import url('https://fonts.googleapis.com/css2?family=ZCOOL+KuaiLe&display=swap');
       
-      body { 
-        margin: 0; overflow: hidden; 
-        font-family: 'ZCOOL KuaiLe', 'Comic Sans MS', 'Chalkboard SE', 'PingFang SC', sans-serif; 
-      }
+      body { margin: 0; overflow: hidden; font-family: 'ZCOOL KuaiLe', 'Comic Sans MS', 'PingFang SC', sans-serif; }
       
       /* 童话风启动屏 */
       #start-screen { 
         position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
-        background: linear-gradient(135deg, #a18cd1 0%, #fbc2eb 100%); /* 梦幻紫粉渐变 */
+        background: linear-gradient(135deg, #a18cd1 0%, #fbc2eb 100%); 
         z-index: 10000; display: flex; flex-direction: column; justify-content: center; align-items: center; 
+        transition: opacity 0.5s;
       }
-
       .welcome-card {
-        background: rgba(255, 255, 255, 0.95);
-        padding: 40px 30px;
-        border-radius: 30px;
-        text-align: center;
-        box-shadow: 0 15px 35px rgba(0,0,0,0.2);
-        border: 4px solid #fff;
-        width: 80%;
-        max-width: 320px;
+        background: rgba(255, 255, 255, 0.95); padding: 40px 30px; border-radius: 30px;
+        text-align: center; box-shadow: 0 15px 35px rgba(0,0,0,0.2); border: 4px solid #fff; width: 80%; max-width: 320px;
       }
-
       h2 { color: #ff6b6b; font-size: 28px; margin: 0 0 15px 0; text-shadow: 2px 2px 0px #ffeaa7; }
       p { color: #576574; font-size: 16px; margin-bottom: 30px; font-weight: bold; line-height: 1.4; }
-
-      /* 会呼吸的果冻按钮 */
+      
       #start-btn { 
         padding: 15px 40px; background: #ff9f43; border: 4px solid #fff; border-radius: 50px; 
         color: white; font-size: 20px; font-weight: bold; cursor: pointer; 
-        box-shadow: 0 8px 15px rgba(255, 159, 67, 0.4);
-        animation: pulse 2s infinite ease-in-out;
+        box-shadow: 0 8px 15px rgba(255, 159, 67, 0.4); animation: pulse 2s infinite ease-in-out; transition: all 0.3s;
       }
-      
       @keyframes pulse {
         0% { transform: scale(1); box-shadow: 0 8px 15px rgba(255, 159, 67, 0.4); }
         50% { transform: scale(1.08); box-shadow: 0 15px 25px rgba(255, 159, 67, 0.6); }
         100% { transform: scale(1); box-shadow: 0 8px 15px rgba(255, 159, 67, 0.4); }
       }
 
-      /* 可爱的气泡字幕框 */
-      #subtitle-container { 
-        position: fixed; bottom: 8%; left: 5%; width: 90%; text-align: center; 
-        z-index: 9998; pointer-events: none; opacity: 0; transition: opacity 0.5s ease-in-out; 
+      /* 【新增】儿童版专属自定义扫描框 */
+      #custom-scanner {
+        position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+        z-index: 9997; pointer-events: none; display: none;
+        flex-direction: column; justify-content: center; align-items: center;
       }
-      
-      #subtitle-text { 
-        display: inline-block; 
-        background: #ffffff; 
-        color: #576574; 
-        padding: 15px 25px; 
-        border-radius: 25px; 
-        font-size: 18px; 
-        text-align: left; 
-        line-height: 1.5; 
-        max-width: 90%; 
-        word-wrap: break-word; 
-        box-shadow: 0 8px 20px rgba(0,0,0,0.15); 
-        border: 4px solid #ff9f43; 
-        position: relative;
-        font-weight: bold;
+      .scan-frame {
+        width: 70vw; height: 70vw; max-width: 400px; max-height: 400px;
+        border: 6px dashed #ff9f43; border-radius: 20px;
+        box-shadow: 0 0 0 100vmax rgba(0, 0, 0, 0.5); /* 压暗四周，让小朋友的注意力集中在中间 */
+      }
+      .scan-tip {
+        margin-top: 30px; background: #ff9f43; color: white;
+        padding: 12px 25px; border-radius: 30px; font-weight: bold; font-size: 18px;
+        box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+        animation: floatUpDown 2s ease-in-out infinite;
+      }
+      @keyframes floatUpDown {
+        0%, 100% { transform: translateY(0); }
+        50% { transform: translateY(-10px); }
       }
 
-      /* 气泡底部的小尾巴 */
-      #subtitle-text::after {
-        content: ''; position: absolute; bottom: -14px; left: 50%; transform: translateX(-50%);
-        border-width: 14px 14px 0; border-style: solid; border-color: #ff9f43 transparent transparent transparent;
-      }
-      #subtitle-text::before {
-        content: ''; position: absolute; bottom: -8px; left: 50%; transform: translateX(-50%);
-        border-width: 10px 10px 0; border-style: solid; border-color: #ffffff transparent transparent transparent;
-        z-index: 1;
-      }
+      /* 气泡字幕 */
+      #subtitle-container { position: fixed; bottom: 8%; left: 5%; width: 90%; text-align: center; z-index: 9998; pointer-events: none; opacity: 0; transition: opacity 0.5s; }
+      #subtitle-text { display: inline-block; background: #ffffff; color: #576574; padding: 15px 25px; border-radius: 25px; font-size: 18px; text-align: left; line-height: 1.5; max-width: 90%; word-wrap: break-word; box-shadow: 0 8px 20px rgba(0,0,0,0.15); border: 4px solid #ff9f43; position: relative; font-weight: bold; }
+      #subtitle-text::after { content: ''; position: absolute; bottom: -14px; left: 50%; transform: translateX(-50%); border-width: 14px 14px 0; border-style: solid; border-color: #ff9f43 transparent transparent transparent; }
+      #subtitle-text::before { content: ''; position: absolute; bottom: -8px; left: 50%; transform: translateX(-50%); border-width: 10px 10px 0; border-style: solid; border-color: #ffffff transparent transparent transparent; z-index: 1; }
     </style>
   </head>
   <body>
@@ -96,14 +76,14 @@
       </div>
     </div>
 
+    <div id="custom-scanner">
+      <div class="scan-frame"></div>
+      <div class="scan-tip">请将小红帽放进框框里</div>
+    </div>
+
     <div id="subtitle-container"><div id="subtitle-text"></div></div>
 
     <script>
-      // 将原来的屏幕打印替换为隐藏的控制台输出，保持底层逻辑不变
-      function printLog(msg) {
-        console.log(msg);
-      }
-
       let globalConfig = null;
       let preloadedVideos = {}; 
       let activeTimers = [];
@@ -111,18 +91,36 @@
       
       let isPlaying = false; 
       let lostTimeout = null;
+      
+      // 【核心逻辑】：状态锁，确保引擎和用户都准备好了才进入
+      let engineReady = false;
+      let userClicked = false;
 
-      // 1. 获取剧本
       fetch('./story_config.json')
         .then(res => res.json())
-        .then(data => { globalConfig = data; printLog("剧本已就绪"); })
-        .catch(e => printLog("找不到 story_config.json 文件"));
+        .then(data => { globalConfig = data; })
+        .catch(e => console.error("找不到剧本"));
 
-      // 2. 点击进入按钮
-      document.getElementById('start-btn').onclick = () => {
-        document.getElementById('start-screen').style.display = 'none';
+      // 监听 AR 引擎的“真·就绪”事件
+      document.addEventListener("DOMContentLoaded", function() {
+        const sceneEl = document.querySelector('a-scene');
+        sceneEl.addEventListener("arReady", () => {
+          console.log("AR 引擎已完成初始化");
+          engineReady = true;
+          checkStart(); // 尝试触发进入流程
+        });
+      });
+
+      // 按钮点击事件
+      document.getElementById('start-btn').onclick = function() {
+        userClicked = true;
         
-        // 预加载与解锁媒体
+        // 改变按钮状态，安抚用户等待
+        this.innerText = "✨ 魔法唤醒中...";
+        this.style.animation = "none";
+        this.style.transform = "scale(0.95)";
+        this.style.pointerEvents = "none";
+        
         if (globalConfig && globalConfig.timeline) {
           globalConfig.timeline.forEach(step => {
             if (step.action === 'playVideo') {
@@ -134,7 +132,6 @@
               v.setAttribute('webkit-playsinline', '');
               v.setAttribute('preload', 'auto');
               v.style.display = 'none';
-              
               v.muted = true; 
               document.body.appendChild(v);
               preloadedVideos[step.time_ms] = v; 
@@ -142,23 +139,35 @@
               const playPromise = v.play();
               if (playPromise !== undefined) {
                 playPromise.then(() => {
-                  setTimeout(() => {
-                    v.pause();
-                    v.currentTime = 0;
-                    v.muted = false; 
-                  }, 50);
-                }).catch(e => printLog("视频预加载被拦截"));
+                  setTimeout(() => { v.pause(); v.currentTime = 0; v.muted = false; }, 50);
+                }).catch(e => console.warn("视频预加载被拦截"));
               }
             }
           });
         }
+        
+        checkStart(); // 尝试触发进入流程
       };
 
-      // 3. AR 核心执行
+      // 【全新加入】核验器：只要两者都 Ready，才真正移除遮罩
+      function checkStart() {
+        if (engineReady && userClicked) {
+          // 渐隐移除启动屏
+          document.getElementById('start-screen').style.opacity = '0';
+          setTimeout(() => { 
+            document.getElementById('start-screen').style.display = 'none'; 
+            // 显示扫描引导框
+            document.getElementById('custom-scanner').style.display = 'flex';
+          }, 500);
+        }
+      }
+
+      // AR 核心执行
       document.addEventListener("DOMContentLoaded", function() {
         const targetEl = document.querySelector('[mindar-image-target]');
         const subtitleContainer = document.getElementById('subtitle-container');
         const subtitleText = document.getElementById('subtitle-text');
+        const customScanner = document.getElementById('custom-scanner');
 
         targetEl.addEventListener("targetFound", () => {
           if (lostTimeout) {
@@ -169,6 +178,9 @@
           
           if (isPlaying) return; 
           isPlaying = true;
+          
+          // 发现目标后，隐藏引导框
+          customScanner.style.display = 'none';
           
           if(!globalConfig) return;
 
@@ -183,30 +195,26 @@
               
               else if (step.action === 'playVideo') {
                 let v = preloadedVideos[step.time_ms]; 
-                
                 if (v) {
                   let ve = document.createElement('a-video');
                   ve.setAttribute('src', '#' + v.id);
                   ve.setAttribute('width', '1');
                   ve.setAttribute('height', '0.5625'); 
                   ve.setAttribute('position', '0 0 0.05'); 
-                  
                   targetEl.appendChild(ve);
                   
                   const playPromise = v.play();
-                  if (playPromise !== undefined) playPromise.catch(e => printLog("播放失败"));
+                  if (playPromise !== undefined) playPromise.catch(e => console.error("播放失败"));
                   
                   activeMedia.push({html: v, el: ve});
 
                   setTimeout(() => {
                     if (ve.parentNode) ve.parentNode.removeChild(ve);
-                    v.pause();
-                    v.currentTime = 0;
+                    v.pause(); v.currentTime = 0;
                   }, step.duration_ms);
                 }
               }
             }, step.time_ms);
-            
             activeTimers.push(startT);
           });
         });
@@ -214,6 +222,9 @@
         targetEl.addEventListener("targetLost", () => {
           lostTimeout = setTimeout(() => {
             isPlaying = false;
+            
+            // 丢失目标后，重新显示引导框
+            customScanner.style.display = 'flex';
             
             activeTimers.forEach(clearTimeout);
             activeTimers = [];
@@ -231,7 +242,7 @@
       });
     </script>
 
-    <a-scene mindar-image="imageTargetSrc: targets.mind?v=4; filterMinCF:0.0001; filterBeta:0.001;" color-space="sRGB" renderer="colorManagement: true, physicallyCorrectLights" vr-mode-ui="enabled: false" device-orientation-permission-ui="enabled: false">
+    <a-scene mindar-image="imageTargetSrc: targets.mind?v=5; uiScanning: no; uiLoading: no; filterMinCF:0.0001; filterBeta:0.001;" color-space="sRGB" renderer="colorManagement: true, physicallyCorrectLights" vr-mode-ui="enabled: false" device-orientation-permission-ui="enabled: false">
       <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
       <a-entity mindar-image-target="targetIndex: 0"></a-entity>
     </a-scene>
