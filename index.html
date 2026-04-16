@@ -3,7 +3,7 @@
   <head>
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta charset="utf-8" />
-    <title>小红帽 AR 奇幻故事书 - 调试版</title>
+    <title>小红帽 AR 奇幻故事书 - 纯享视频版</title>
     <script src="https://aframe.io/releases/1.3.0/aframe.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.2/dist/mindar-image-aframe.prod.js"></script>
     
@@ -65,11 +65,6 @@
         0%, 100% { transform: translateY(0); }
         50% { transform: translateY(-10px); }
       }
-
-      #subtitle-container { position: fixed; bottom: 8%; left: 5%; width: 90%; text-align: center; z-index: 9998; pointer-events: none; opacity: 0; transition: opacity 0.5s; }
-      #subtitle-text { display: inline-block; background: #ffffff; color: #576574; padding: 15px 25px; border-radius: 25px; font-size: 18px; text-align: left; line-height: 1.5; max-width: 90%; word-wrap: break-word; box-shadow: 0 8px 20px rgba(0,0,0,0.15); border: 4px solid #ff9f43; position: relative; font-weight: bold; }
-      #subtitle-text::after { content: ''; position: absolute; bottom: -14px; left: 50%; transform: translateX(-50%); border-width: 14px 14px 0; border-style: solid; border-color: #ff9f43 transparent transparent transparent; }
-      #subtitle-text::before { content: ''; position: absolute; bottom: -8px; left: 50%; transform: translateX(-50%); border-width: 10px 10px 0; border-style: solid; border-color: #ffffff transparent transparent transparent; z-index: 1; }
     </style>
   </head>
   <body>
@@ -88,8 +83,6 @@
       <div class="scan-frame"></div>
       <div class="scan-tip">请将当前故事页放进框框里</div>
     </div>
-
-    <div id="subtitle-container"><div id="subtitle-text"></div></div>
 
     <script>
       // 🐞 屏幕打印函数
@@ -177,7 +170,7 @@
                 }
               }
 
-              // 【核心优化】：只要加载到了设定的阈值（比如第2个），立刻放行用户！
+              // 【核心优化】：只要加载到了设定的阈值，立刻放行用户！
               if (current === QUICK_START_COUNT && !uiUnlocked) {
                 printLog("🚀 首批魔法已准备好，提前放行！后续任务转入后台...");
                 uiUnlocked = true;
@@ -185,14 +178,13 @@
               }
             }
             
-            // 兜底逻辑：如果故事书总页数本来就不到 2 页，也要确保循环结束后能放行
+            // 兜底逻辑
             if (!uiUnlocked) {
               uiUnlocked = true;
               checkStart();
             }
           };
 
-          // 触发后台任务，它会自己慢慢跑，不卡主界面
           backgroundPreload();
 
         } else {
@@ -200,7 +192,6 @@
         }
       };
 
-      // 只有当引擎准备好，且 UI 锁被提前解开时，切换界面
       function checkStart() {
         if (engineReady && uiUnlocked) {
           document.getElementById('start-screen').style.opacity = '0';
@@ -212,11 +203,9 @@
         }
       }
 
-      // 4. 多页识别逻辑
+      // 4. 多页识别逻辑 (纯视频版本)
       document.addEventListener("DOMContentLoaded", function() {
         const targets = document.querySelectorAll('[mindar-image-target]');
-        const subtitleContainer = document.getElementById('subtitle-container');
-        const subtitleText = document.getElementById('subtitle-text');
         const customScanner = document.getElementById('custom-scanner');
 
         function stopCurrentPage() {
@@ -228,7 +217,6 @@
           }
           activeVideoEl = null;
           activeVideoHtml = null;
-          subtitleContainer.style.opacity = 0;
           currentPage = -1;
         }
 
@@ -252,17 +240,6 @@
                printLog("❌ 找不到全局配置数据", "#FF4444");
                return;
             }
-
-            const pageData = globalConfig.pages.find(p => p.index === idx);
-            if (!pageData) {
-               printLog(`❌ 在 JSON 中找不到 index 为 ${idx} 的数据！`, "#FF4444");
-               return;
-            }
-
-            // // 显示字幕
-            // subtitleText.innerText = pageData.text;
-            // subtitleContainer.style.opacity = 1;
-            // printLog(`💬 显示字幕: ${pageData.text.substring(0, 10)}...`);
 
             // 挂载视频
             let v = preloadedVideos[idx]; 
@@ -307,7 +284,7 @@
       });
     </script>
 
-    <a-scene mindar-image="imageTargetSrc: targets.mind?v=7; uiScanning: no; uiLoading: no; filterMinCF:0.0001; filterBeta:0.001;" color-space="sRGB" renderer="colorManagement: true, physicallyCorrectLights" vr-mode-ui="enabled: false" device-orientation-permission-ui="enabled: false">
+    <a-scene mindar-image="imageTargetSrc: targets.mind?v=8; uiScanning: no; uiLoading: no; filterMinCF:0.0001; filterBeta:0.001;" color-space="sRGB" renderer="colorManagement: true, physicallyCorrectLights" vr-mode-ui="enabled: false" device-orientation-permission-ui="enabled: false">
       <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
       
       <a-entity mindar-image-target="targetIndex: 0"></a-entity>
