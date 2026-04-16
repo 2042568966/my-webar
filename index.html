@@ -3,7 +3,7 @@
   <head>
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta charset="utf-8" />
-    <title>小红帽 AR 奇幻剧场</title>
+    <title>小红帽 AR 奇幻故事书</title>
     <script src="https://aframe.io/releases/1.3.0/aframe.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.2/dist/mindar-image-aframe.prod.js"></script>
     
@@ -37,7 +37,7 @@
         100% { transform: scale(1); box-shadow: 0 8px 15px rgba(255, 159, 67, 0.4); }
       }
 
-      /* 【新增】儿童版专属自定义扫描框 */
+      /* 定制扫描框：针对正方形书本优化 */
       #custom-scanner {
         position: fixed; top: 0; left: 0; width: 100%; height: 100%;
         z-index: 9997; pointer-events: none; display: none;
@@ -46,7 +46,7 @@
       .scan-frame {
         width: 70vw; height: 70vw; max-width: 400px; max-height: 400px;
         border: 6px dashed #ff9f43; border-radius: 20px;
-        box-shadow: 0 0 0 100vmax rgba(0, 0, 0, 0.5); /* 压暗四周，让小朋友的注意力集中在中间 */
+        box-shadow: 0 0 0 100vmax rgba(0, 0, 0, 0.5);
       }
       .scan-tip {
         margin-top: 30px; background: #ff9f43; color: white;
@@ -70,15 +70,15 @@
     
     <div id="start-screen">
       <div class="welcome-card">
-        <h2>🍄 小红帽奇幻剧场</h2>
-        <p>把手机对准绘本封面<br>故事就会跑出来哦！</p>
+        <h2>🍄 小红帽奇幻故事书</h2>
+        <p>翻开不同的书页<br>就能看到不一样的动画哦！</p>
         <button id="start-btn">开始魔法</button>
       </div>
     </div>
 
     <div id="custom-scanner">
       <div class="scan-frame"></div>
-      <div class="scan-tip">请将小红帽放进框框里</div>
+      <div class="scan-tip">请将当前故事页放进框框里</div>
     </div>
 
     <div id="subtitle-container"><div id="subtitle-text"></div></div>
@@ -86,47 +86,45 @@
     <script>
       let globalConfig = null;
       let preloadedVideos = {}; 
-      let activeTimers = [];
-      let activeMedia = [];
       
-      let isPlaying = false; 
+      let activeVideoHtml = null;
+      let activeVideoEl = null;
+      let currentPage = -1; // 记录当前正在播放的页码
       let lostTimeout = null;
       
-      // 【核心逻辑】：状态锁，确保引擎和用户都准备好了才进入
       let engineReady = false;
       let userClicked = false;
 
+      // 1. 获取最新版 JSON 数据
       fetch('./story_config.json')
         .then(res => res.json())
         .then(data => { globalConfig = data; })
-        .catch(e => console.error("找不到剧本"));
+        .catch(e => console.error("找不到 story_config.json 剧本文件"));
 
-      // 监听 AR 引擎的“真·就绪”事件
+      // 2. 监听引擎初始化完成
       document.addEventListener("DOMContentLoaded", function() {
         const sceneEl = document.querySelector('a-scene');
         sceneEl.addEventListener("arReady", () => {
-          console.log("AR 引擎已完成初始化");
+          console.log("AR 引擎就绪");
           engineReady = true;
-          checkStart(); // 尝试触发进入流程
+          checkStart(); 
         });
       });
 
-      // 按钮点击事件
+      // 3. 点击按钮，预加载所有视频页面
       document.getElementById('start-btn').onclick = function() {
         userClicked = true;
-        
-        // 改变按钮状态，安抚用户等待
         this.innerText = "✨ 魔法唤醒中...";
         this.style.animation = "none";
         this.style.transform = "scale(0.95)";
         this.style.pointerEvents = "none";
         
-        if (globalConfig && globalConfig.timeline) {
-          globalConfig.timeline.forEach(step => {
-            if (step.action === 'playVideo') {
+        if (globalConfig && globalConfig.pages) {
+          globalConfig.pages.forEach(page => {
+            if (page.video) {
               let v = document.createElement('video');
-              v.id = 'vid_' + step.time_ms;
-              v.src = step.value; 
+              v.id = 'vid_' + page.index;
+              v.src = page.video; 
               v.crossOrigin = "anonymous";
               v.setAttribute('playsinline', '');
               v.setAttribute('webkit-playsinline', '');
@@ -134,117 +132,135 @@
               v.style.display = 'none';
               v.muted = true; 
               document.body.appendChild(v);
-              preloadedVideos[step.time_ms] = v; 
+              preloadedVideos[page.index] = v; 
 
               const playPromise = v.play();
               if (playPromise !== undefined) {
                 playPromise.then(() => {
                   setTimeout(() => { v.pause(); v.currentTime = 0; v.muted = false; }, 50);
-                }).catch(e => console.warn("视频预加载被拦截"));
+                }).catch(e => console.warn(`视频 ${page.video} 预加载被拦截`));
               }
             }
           });
         }
-        
-        checkStart(); // 尝试触发进入流程
+        checkStart(); 
       };
 
-      // 【全新加入】核验器：只要两者都 Ready，才真正移除遮罩
       function checkStart() {
         if (engineReady && userClicked) {
-          // 渐隐移除启动屏
           document.getElementById('start-screen').style.opacity = '0';
           setTimeout(() => { 
             document.getElementById('start-screen').style.display = 'none'; 
-            // 显示扫描引导框
             document.getElementById('custom-scanner').style.display = 'flex';
           }, 500);
         }
       }
 
-      // AR 核心执行
+      // 4. 多页 AR 核心识别逻辑
       document.addEventListener("DOMContentLoaded", function() {
-        const targetEl = document.querySelector('[mindar-image-target]');
+        const targets = document.querySelectorAll('[mindar-image-target]');
         const subtitleContainer = document.getElementById('subtitle-container');
         const subtitleText = document.getElementById('subtitle-text');
         const customScanner = document.getElementById('custom-scanner');
 
-        targetEl.addEventListener("targetFound", () => {
-          if (lostTimeout) {
-            clearTimeout(lostTimeout);
-            lostTimeout = null;
-            return; 
+        // 停止当前页播放的独立函数
+        function stopCurrentPage() {
+          if (activeVideoEl && activeVideoEl.parentNode) {
+            activeVideoEl.parentNode.removeChild(activeVideoEl);
           }
-          
-          if (isPlaying) return; 
-          isPlaying = true;
-          
-          // 发现目标后，隐藏引导框
-          customScanner.style.display = 'none';
-          
-          if(!globalConfig) return;
+          if (activeVideoHtml) {
+            activeVideoHtml.pause();
+            // 不重置 currentTime，可以让视频在短暂丢失后继续接着播
+          }
+          activeVideoEl = null;
+          activeVideoHtml = null;
+          subtitleContainer.style.opacity = 0;
+          currentPage = -1;
+        }
 
-          globalConfig.timeline.forEach(step => {
-            let startT = setTimeout(() => {
-              
-              if (step.action === 'showText') {
-                subtitleText.innerText = step.value;
-                subtitleContainer.style.opacity = 1;
-                setTimeout(() => { if(subtitleText.innerText === step.value) subtitleContainer.style.opacity = 0; }, step.duration_ms);
-              } 
-              
-              else if (step.action === 'playVideo') {
-                let v = preloadedVideos[step.time_ms]; 
-                if (v) {
-                  let ve = document.createElement('a-video');
-                  ve.setAttribute('src', '#' + v.id);
-                  ve.setAttribute('width', '1');
-                  ve.setAttribute('height', '0.5625'); 
-                  ve.setAttribute('position', '0 0 0.05'); 
-                  targetEl.appendChild(ve);
-                  
-                  const playPromise = v.play();
-                  if (playPromise !== undefined) playPromise.catch(e => console.error("播放失败"));
-                  
-                  activeMedia.push({html: v, el: ve});
+        // 给每个识别节点绑定事件
+        targets.forEach((targetEl, idx) => {
+          
+          // 目标出现
+          targetEl.addEventListener("targetFound", () => {
+            console.log(`🎯 识别到第 ${idx} 页`);
+            
+            // 清除丢失防抖计时器
+            if (lostTimeout) {
+              clearTimeout(lostTimeout);
+              lostTimeout = null;
+            }
+            
+            // 如果已经在播这一页，直接返回
+            if (currentPage === idx) return; 
+            
+            // 如果正在播别的页（比如瞬间翻页），先停止上一页
+            stopCurrentPage();
+            
+            currentPage = idx;
+            customScanner.style.display = 'none'; // 隐藏扫描框
+            
+            if(!globalConfig) return;
 
-                  setTimeout(() => {
-                    if (ve.parentNode) ve.parentNode.removeChild(ve);
-                    v.pause(); v.currentTime = 0;
-                  }, step.duration_ms);
-                }
-              }
-            }, step.time_ms);
-            activeTimers.push(startT);
+            // 查找 JSON 中对应这一页的数据
+            const pageData = globalConfig.pages.find(p => p.index === idx);
+            if (!pageData) return;
+
+            // 1. 显示当前页的字幕
+            subtitleText.innerText = pageData.text;
+            subtitleContainer.style.opacity = 1;
+
+            // 2. 挂载并播放当前页的视频
+            let v = preloadedVideos[idx]; 
+            if (v) {
+              let ve = document.createElement('a-video');
+              ve.setAttribute('src', '#' + v.id);
+              
+              // 【方形绘本适配】: 视频宽度和高度设为 1:1，贴合方形书本
+              ve.setAttribute('width', '1');
+              ve.setAttribute('height', '1'); 
+              ve.setAttribute('position', '0 0 0.05'); 
+              
+              targetEl.appendChild(ve);
+              
+              const playPromise = v.play();
+              if (playPromise !== undefined) playPromise.catch(e => console.error("视频播放失败"));
+              
+              // 记录当前的活跃视频实体
+              activeVideoHtml = v;
+              activeVideoEl = ve;
+            }
           });
-        });
 
-        targetEl.addEventListener("targetLost", () => {
-          lostTimeout = setTimeout(() => {
-            isPlaying = false;
+          // 目标丢失
+          targetEl.addEventListener("targetLost", () => {
+            console.log(`⚠️ 第 ${idx} 页丢失`);
             
-            // 丢失目标后，重新显示引导框
-            customScanner.style.display = 'flex';
-            
-            activeTimers.forEach(clearTimeout);
-            activeTimers = [];
-            
-            activeMedia.forEach(m => { 
-              if(m.el.parentNode) m.el.parentNode.removeChild(m.el); 
-              try { m.html.pause(); m.html.currentTime = 0; } catch(e){} 
-            });
-            activeMedia = [];
-            subtitleContainer.style.opacity = 0;
-            
-            lostTimeout = null;
-          }, 1000); 
+            // 加入 1 秒钟防抖缓冲，防止翻书时手抖
+            lostTimeout = setTimeout(() => {
+              stopCurrentPage();
+              customScanner.style.display = 'flex'; // 重新呼出扫描框
+              lostTimeout = null;
+            }, 1000); 
+          });
         });
       });
     </script>
 
-    <a-scene mindar-image="imageTargetSrc: targets.mind?v=5; uiScanning: no; uiLoading: no; filterMinCF:0.0001; filterBeta:0.001;" color-space="sRGB" renderer="colorManagement: true, physicallyCorrectLights" vr-mode-ui="enabled: false" device-orientation-permission-ui="enabled: false">
+    <a-scene mindar-image="imageTargetSrc: targets.mind?v=6; uiScanning: no; uiLoading: no; filterMinCF:0.0001; filterBeta:0.001;" color-space="sRGB" renderer="colorManagement: true, physicallyCorrectLights" vr-mode-ui="enabled: false" device-orientation-permission-ui="enabled: false">
       <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
+      
       <a-entity mindar-image-target="targetIndex: 0"></a-entity>
+      <a-entity mindar-image-target="targetIndex: 1"></a-entity>
+      <a-entity mindar-image-target="targetIndex: 2"></a-entity>
+      <a-entity mindar-image-target="targetIndex: 3"></a-entity>
+      <a-entity mindar-image-target="targetIndex: 4"></a-entity>
+      <a-entity mindar-image-target="targetIndex: 5"></a-entity>
+      <a-entity mindar-image-target="targetIndex: 6"></a-entity>
+      <a-entity mindar-image-target="targetIndex: 7"></a-entity>
+      <a-entity mindar-image-target="targetIndex: 8"></a-entity>
+      <a-entity mindar-image-target="targetIndex: 9"></a-entity>
+
     </a-scene>
   </body>
 </html>

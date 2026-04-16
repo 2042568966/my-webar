@@ -1,11 +1,19 @@
 {
-  "targetImage": "targets.mind",
-  "timeline": [
+  "pages": [
     {
-      "time_ms": 100,
-      "duration_ms": 7600,
-      "action": "playVideo",
-      "value": "story2.mp4"
+      "index": 0,
+      "video": "page_0.mp4",
+      "text": "从前有个可爱的小姑娘，大家都叫她“小红帽”。"
+    },
+    {
+      "index": 1,
+      "video": "page_1.mp4",
+      "text": "小红帽提着篮子，走进了森林里..."
+    },
+    {
+      "index": 2,
+      "video": "page_2.mp4",
+      "text": "大灰狼看到了小红帽，躲在树后偷看。"
     }
   ]
 }
