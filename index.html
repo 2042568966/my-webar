@@ -3,7 +3,7 @@
   <head>
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta charset="utf-8" />
-    <title>小红帽 AR 奇幻故事书 - 纯享视频版</title>
+    <title>小红帽 AR 奇幻故事书</title>
     <script src="https://aframe.io/releases/1.3.0/aframe.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.2/dist/mindar-image-aframe.prod.js"></script>
     
@@ -11,14 +11,6 @@
       @import url('https://fonts.googleapis.com/css2?family=ZCOOL+KuaiLe&display=swap');
       
       body { margin: 0; overflow: hidden; font-family: 'ZCOOL KuaiLe', 'Comic Sans MS', 'PingFang SC', sans-serif; }
-      
-      /* 🐞 屏幕调试控制台 */
-      #debug-console { 
-        position: fixed; top: 0; left: 0; width: 100%; height: 25vh; 
-        background: rgba(0, 0, 0, 0.85); color: #00FF00; 
-        font-family: monospace; font-size: 12px; overflow-y: auto; 
-        z-index: 99999; padding: 10px; box-sizing: border-box; pointer-events: none; 
-      }
 
       /* 童话风启动屏 */
       #start-screen { 
@@ -45,6 +37,7 @@
         100% { transform: scale(1); box-shadow: 0 8px 15px rgba(255, 159, 67, 0.4); }
       }
 
+      /* 专属定制扫描框 */
       #custom-scanner {
         position: fixed; top: 0; left: 0; width: 100%; height: 100%;
         z-index: 9997; pointer-events: none; display: none;
@@ -69,8 +62,6 @@
   </head>
   <body>
     
-    <div id="debug-console">> 系统启动中...<br></div>
-
     <div id="start-screen">
       <div class="welcome-card">
         <h2>🍄 小红帽奇幻故事书</h2>
@@ -85,13 +76,6 @@
     </div>
 
     <script>
-      // 🐞 屏幕打印函数
-      // const debugConsole = document.getElementById('debug-console');
-      // function //  printLog(msg, color = '#00FF00') {
-      //   debugConsole.innerHTML += `<div style="color:${color}; margin-bottom:4px;">> ${msg}</div>`;
-      //   debugConsole.scrollTop = debugConsole.scrollHeight;
-      // }
-
       let globalConfig = null;
       let preloadedVideos = {}; 
       
@@ -104,7 +88,6 @@
       let userClicked = false;
 
       // 1. 获取 JSON
-      //  printLog("开始拉取 story_config.json...");
       fetch('./story_config.json')
         .then(res => {
           if(!res.ok) throw new Error("网络响应不正常 " + res.status);
@@ -112,15 +95,15 @@
         })
         .then(data => { 
           globalConfig = data; 
-          //  printLog("✅ 剧本加载成功，包含 " + (data.pages ? data.pages.length : 0) + " 页数据"); 
+          console.log("剧本加载成功，包含 " + (data.pages ? data.pages.length : 0) + " 页数据"); 
         })
-        .catch(e => //  printLog("❌ 加载 JSON 失败: " + e.message, "#FF4444"));
+        .catch(e => console.error("加载 JSON 失败: " + e.message));
 
       // 2. 引擎初始化
       document.addEventListener("DOMContentLoaded", function() {
         const sceneEl = document.querySelector('a-scene');
         sceneEl.addEventListener("arReady", () => {
-          //  printLog("✅ AR 引擎底层就绪");
+          console.log("AR 引擎底层就绪");
           engineReady = true;
           checkStart(); 
         });
@@ -128,13 +111,13 @@
 
       // 新增状态锁和“首批唤醒”阈值
       let uiUnlocked = false; 
-      const QUICK_START_COUNT = 2; // 只等前 2 个视频加载完就立刻进界面！
+      const QUICK_START_COUNT = 2; // 只等前 2 个视频加载完就立刻进界面
 
       // 3. 点击预加载 (后台静默排队版)
       document.getElementById('start-btn').onclick = function() {
         this.style.pointerEvents = "none";
         this.innerText = "✨ 魔法唤醒中...";
-        //  printLog("🔓 用户点击，启动后台静默唤醒机制...");
+        console.log("用户点击，启动后台静默唤醒机制...");
         
         if (globalConfig && globalConfig.pages) {
           const total = globalConfig.pages.length;
@@ -164,15 +147,15 @@
                   v.pause(); 
                   v.currentTime = 0; 
                   v.muted = false; 
-                  //  printLog(`📦 第 ${page.index} 页就绪 (${current}/${total})`);
+                  console.log(`第 ${page.index} 页就绪 (${current}/${total})`);
                 } catch(e) {
-                  //  printLog(`⚠️ 第 ${page.index} 页拦截: ${e.message}`, "#FFDD00");
+                  console.warn(`第 ${page.index} 页拦截: ${e.message}`);
                 }
               }
 
               // 【核心优化】：只要加载到了设定的阈值，立刻放行用户！
               if (current === QUICK_START_COUNT && !uiUnlocked) {
-                //  printLog("🚀 首批魔法已准备好，提前放行！后续任务转入后台...");
+                console.log("首批魔法已准备好，提前放行！后续任务转入后台...");
                 uiUnlocked = true;
                 checkStart();
               }
@@ -188,7 +171,7 @@
           backgroundPreload();
 
         } else {
-           //  //  printLog("❌ 配置中找不到 pages 数组", "#FF4444");
+           console.error("配置中找不到 pages 数组");
         }
       };
 
@@ -198,7 +181,7 @@
           setTimeout(() => { 
             document.getElementById('start-screen').style.display = 'none'; 
             document.getElementById('custom-scanner').style.display = 'flex';
-            //  printLog("🚀 界面切换完毕，可以开始扫描了");
+            console.log("界面切换完毕，可以开始扫描了");
           }, 500);
         }
       }
@@ -222,12 +205,12 @@
 
         targets.forEach((targetEl, idx) => {
           targetEl.addEventListener("targetFound", () => {
-            //  printLog(`🎯 触发 targetFound，识别序号: ${idx}`);
+            console.log(`触发 targetFound，识别序号: ${idx}`);
             
             if (lostTimeout) {
               clearTimeout(lostTimeout);
               lostTimeout = null;
-              //  printLog(`🎯 恢复序号: ${idx} (防抖)`);
+              console.log(`恢复序号: ${idx} (防抖)`);
             }
             
             if (currentPage === idx) return; 
@@ -237,14 +220,14 @@
             customScanner.style.display = 'none'; 
             
             if(!globalConfig) {
-               //  printLog("❌ 找不到全局配置数据", "#FF4444");
+               console.error("找不到全局配置数据");
                return;
             }
 
             // 挂载视频
             let v = preloadedVideos[idx]; 
             if (v) {
-              //  printLog(`🎬 准备挂载视频，元素 ID: ${v.id}`);
+              console.log(`准备挂载视频，元素 ID: ${v.id}`);
               let ve = document.createElement('a-video');
               ve.setAttribute('src', '#' + v.id);
               ve.setAttribute('width', '1');
@@ -252,29 +235,29 @@
               ve.setAttribute('position', '0 0 0.05'); 
               
               targetEl.appendChild(ve);
-              //  printLog(`✅ 视频元素已添加到 3D 场景`);
+              console.log(`视频元素已添加到 3D 场景`);
               
               const playPromise = v.play();
               if (playPromise !== undefined) {
                  playPromise.then(() => {
-                    //  printLog(`▶️ 视频正式开始播放！`);
+                    console.log(`视频正式开始播放！`);
                  }).catch(e => {
-                    //  printLog(`❌ 视频 play() 执行失败: ${e.message}`, "#FF4444");
+                    console.error(`视频 play() 执行失败: ${e.message}`);
                  });
               }
               
               activeVideoHtml = v;
               activeVideoEl = ve;
             } else {
-               //  printLog(`❌ 找不到序号为 ${idx} 的预加载视频对象！`, "#FF4444");
+               console.error(`找不到序号为 ${idx} 的预加载视频对象！`);
             }
           });
 
           targetEl.addEventListener("targetLost", () => {
-            //  printLog(`⚠️ 第 ${idx} 页目标丢失，等待防抖缓冲...`, "#FFDD00");
+            console.log(`第 ${idx} 页目标丢失，等待防抖缓冲...`);
             
             lostTimeout = setTimeout(() => {
-              //  printLog(`🛑 彻底丢失，清理屏幕`);
+              console.log(`彻底丢失，清理屏幕`);
               stopCurrentPage();
               customScanner.style.display = 'flex'; 
               lostTimeout = null;
@@ -284,7 +267,7 @@
       });
     </script>
 
-    <a-scene mindar-image="imageTargetSrc: targets.mind?v=8; uiScanning: no; uiLoading: no; filterMinCF:0.0001; filterBeta:0.001;" color-space="sRGB" renderer="colorManagement: true, physicallyCorrectLights" vr-mode-ui="enabled: false" device-orientation-permission-ui="enabled: false">
+    <a-scene mindar-image="imageTargetSrc: targets.mind?v=9; uiScanning: no; uiLoading: no; filterMinCF:0.0001; filterBeta:0.001;" color-space="sRGB" renderer="colorManagement: true, physicallyCorrectLights" vr-mode-ui="enabled: false" device-orientation-permission-ui="enabled: false">
       <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
       
       <a-entity mindar-image-target="targetIndex: 0"></a-entity>
